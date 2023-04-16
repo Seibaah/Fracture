@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class TetrahedralmeshParser
 {
-    public static void ParseTetMeshFiles(FEM fem, string verts_path, string tets_path)
+    public static void ParseTetMeshFiles(FEM_Mesh fem, string verts_path, string tets_path)
     {
         // Parse verts file
         using (StreamReader reader = new StreamReader(verts_path))
@@ -39,38 +39,5 @@ public class TetrahedralmeshParser
                 fem.tets_data.Add(values);
             }
         }
-
-        //create tet objects
-        GameObject parent = fem.gameObject;
-        int id = 0;
-        foreach (int[] values in fem.tets_data)
-        {
-            //get the tets verts indices
-            int i0 = values[0];
-            int i1 = values[1];
-            int i2 = values[2];
-            int i3 = values[3];
-
-            Vector3 v0 = fem.verts_data[i0];
-            Vector3 v1 = fem.verts_data[i1];
-            Vector3 v2 = fem.verts_data[i2];
-            Vector3 v3 = fem.verts_data[i3];
-
-            GameObject go = new GameObject("tet_go (" + id++ + ")");
-            Tetrahedron tet = go.AddComponent<Tetrahedron>();
-            tet.verts = new List<Vector3> { v0, v1, v2, v3};
-            fem.tets.Add(tet);
-
-            go.transform.parent = parent.transform;
-        }
-
-        //cache min-max points of the mesh
-        fem.minX = fem.verts_data.Min(v => v.x);
-        fem.minY = fem.verts_data.Min(v => v.y);
-        fem.minZ = fem.verts_data.Min(v => v.z);
-        fem.maxX = fem.verts_data.Max(v => v.x);
-        fem.maxY = fem.verts_data.Max(v => v.y);
-        fem.maxZ = fem.verts_data.Max(v => v.z);
-
     }
 }
