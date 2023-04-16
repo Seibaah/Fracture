@@ -1,12 +1,20 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using MNetNumerics = MathNet.Numerics.LinearAlgebra;
 
 public class FEM_Vert : MonoBehaviour
 {
+    //debug
+    [SerializeField]
+    private Vector3 Fi_Debug = new Vector3();
+
+    public List<Tetrahedron> tets = new List<Tetrahedron>();
+    public MNetNumerics.Vector<float> Fi = MNetNumerics.Vector<float>.Build.Dense(3);
+
     public Vector3 coords;
-    public float youngModulus = 1.9f; //in GPa
-    public float poissonRatio = 0.41f;
+    public float k = 1.9f; //young modulus, in GPa
+    public float v = 0.41f; //poisson ratio;
 
     void Start()
     {
@@ -18,5 +26,6 @@ public class FEM_Vert : MonoBehaviour
     void Update()
     {
         coords = transform.position;
+        Fi_Debug = VectorUtils.ConvertNumericsVec3ToUnity(Fi);
     }
 }

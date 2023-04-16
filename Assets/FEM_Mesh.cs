@@ -22,7 +22,7 @@ public class FEM_Mesh : MonoBehaviour
         TetrahedralmeshParser.ParseTetMeshFiles(this, Application.dataPath + "/Tetrahedral Mesh Data/verts.csv",
             Application.dataPath + "/Tetrahedral Mesh Data/tets.csv");
 
-        //create tet objects
+        //create fem vert objects
         GameObject vertsParent = new GameObject();
         vertsParent.transform.parent = gameObject.transform;
         vertsParent.transform.name = "verts";
@@ -62,14 +62,17 @@ public class FEM_Mesh : MonoBehaviour
             tet.meshVerts = new List<FEM_Vert> { fem_v0, fem_v1, fem_v2, fem_v3 };
             tets.Add(tet);
 
+            fem_v0.tets.Add(tet);
+            fem_v1.tets.Add(tet);
+            fem_v2.tets.Add(tet);
+            fem_v3.tets.Add(tet);
+
             go.transform.parent = tetsParent.transform;
         }
-
-        
     }
 
     void Update()
     {
-        if (drawTets) tets.Where(tet => drawTets).ToList().ForEach(tet => tet.Draw());
+        if (drawTets) tets.Where(tet => drawTets).ToList().ForEach(tet => tet.DrawMesh());
     }
 }
