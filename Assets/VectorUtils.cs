@@ -14,4 +14,14 @@ public static class VectorUtils
     {
         return new Vector3(vec.At(0), vec.At(1), vec.At(2));
     }
+
+    public static MNetNumerics.Vector<float> CrossProduct(MNetNumerics.Vector<float> a,
+        MNetNumerics.Vector<float> b)
+    {
+        var aX = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
+        aX.SetColumn(0, new float[] { 0, a.At(2), -a.At(1) });
+        aX.SetColumn(1, new float[] { -a.At(2), 0, -a.At(0) });
+        aX.SetColumn(2, new float[] { a.At(1), -a.At(0), 0 });
+        return aX * b;
+    }
 }

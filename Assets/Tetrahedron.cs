@@ -13,6 +13,7 @@ using MathNet.Numerics.LinearAlgebra.Complex;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using UnityEngine.Assertions;
 using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.Distributions;
 
 public class Tetrahedron : MonoBehaviour
 {
@@ -28,7 +29,9 @@ public class Tetrahedron : MonoBehaviour
 
     public float k = 1.9f; //young modulus, in GPa
     public float v = 0.41f; //poisson ratio;
+    public float vol; //tet volume
 
+    //[Parker and O'Brien 2009] variables
     //3x3 identity matrix
     public MNetNumerics.Matrix<float> I = MNetNumerics.Matrix<float>.Build.DenseIdentity(3);
     //element basis matrix
@@ -41,6 +44,12 @@ public class Tetrahedron : MonoBehaviour
     public MNetNumerics.Matrix<float> Dv = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
     //deformation gradient matrix
     public MNetNumerics.Matrix<float> F;
+
+    //OH99 Variables
+    //Beta matrix (16)
+    public MNetNumerics.Matrix<float> B2 = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+    //X matrix (13)
+    public MNetNumerics.Matrix<float> p = MNetNumerics.Matrix<float>.Build.Dense(3, 4);
 
 
     void Start()
@@ -60,8 +69,26 @@ public class Tetrahedron : MonoBehaviour
             transform.TransformPoint(meshVerts[3].coords - meshVerts[0].coords)));
 
         B = Du.Inverse();
-
         F = Dx* B;
+
+        var v0 = meshVerts[0].coords;
+        B2.SetColumn(0, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v0.x, v0.y, v0.z, 1 }));
+        var v1 = meshVerts[1].coords;
+        B2.SetColumn(1, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v1.x, v1.y, v1.z, 1 }));
+        var v2 = meshVerts[2].coords;
+        B2.SetColumn(2, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v2.x, v2.y, v2.z, 1 }));
+        var v3 = meshVerts[3].coords;
+        B2.SetColumn(3, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v3.x, v3.y, v3.z, 1 }));
+        B2 = B2.Inverse();
+
+        var p0 = transform.TransformPoint(v0);
+        p.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumerics(p0));
+        var p1 = transform.TransformPoint(v1);
+        p.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumerics(p1));
+        var p2 = transform.TransformPoint(v2);
+        p.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumerics(p2));
+        var p3 = transform.TransformPoint(v3);
+        p.SetColumn(3, VectorUtils.ConvertUnityVec3ToNumerics(p3));
 
         //polar decomposition on F
         var F_svd = F.Svd();
@@ -90,17 +117,17 @@ public class Tetrahedron : MonoBehaviour
         var s_eigenvectors = s_evd.EigenVectors;
 
         //compute fi = Q * s * ni for each vert
-        int j = 0;
-        foreach(FEM_Vert v in meshVerts)
+        for (int i = 0; i < meshVerts.Count(); i++)
         {
-            var ni = faceNormals[j++];
+            FEM_Vert v = meshVerts[i];
+            var ni = faceNormals[i++];
             var Fi = Q * s * VectorUtils.ConvertUnityVec3ToNumerics(ni);
             v.Fi += Fi; //accumulate the force on the vert node
         }
 
         MNetNumerics.Matrix<float> sPlus = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
         MNetNumerics.Matrix<float> sMin = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
-        for (int i=0; i<3; i++)
+        for (int i = 0; i < 3; i++)
         {
             sPlus += Mathf.Max(0.0f, ((float)s_eigenvalues.At(i).Magnitude)) 
                 * ComputeOperatorM(s_eigenvectors.Column(i));
@@ -108,15 +135,44 @@ public class Tetrahedron : MonoBehaviour
                 * ComputeOperatorM(s_eigenvectors.Column(i));
         }
 
-        var test = s - (sPlus + sMin);
-        if (test.Equals(Matrix<double>.Build.Dense(3, 3, 0.0)))
+        //debug
         {
-            Debug.Log("The matrix is only zeros.");
+            //var test = s - (sPlus + sMin);
+            //if (test.Equals(Matrix<double>.Build.Dense(3, 3, 0.0)))
+            //{
+            //    Debug.Log("The matrix is only zeros.");
+            //}
+            //else
+            //{
+            //    Debug.Log("The matrix is not only zeros.");
+            //    Debug.Log(test.ToString());
+            //}
         }
-        else
+
+        ComputeTetVolume();
+        float halfVol = -vol / 2;
+        for (int i = 0; i<meshVerts.Count() ; i++)
         {
-            Debug.Log("The matrix is not only zeros.");
-            Debug.Log(test.ToString());
+            FEM_Vert v = meshVerts[i];
+            MNetNumerics.Vector<float> forceSum = MNetNumerics.Vector<float>.Build.Dense(3);
+            for (int j = 0; j < 4; j++)
+            {
+                float innerSum = 0;
+                for (int k = 0; k < 3; k++)
+                {
+                    for (int l = 0; l < 3; l++)
+                    {
+                        innerSum = B2.At(j, l) * B2.At(i, k) * sPlus.At(k, l);
+                    }
+                }
+                forceSum += p.Column(j) * innerSum;
+            }
+            var FiPlus = halfVol * forceSum;
+            v.FiPlus += FiPlus;
+            var FiMinus = v.Fi - v.FiPlus;
+            v.FiMin += FiMinus;
+            v.SetFiPlus.Add(v.FiPlus);
+            v.SetFiMin.Add(v.FiMin);
         }
     }
 
@@ -126,7 +182,7 @@ public class Tetrahedron : MonoBehaviour
     }
 
     //computes the m operator defined in the Parker and O'Brien paper
-    public MNetNumerics.Matrix<float> ComputeOperatorM(MNetNumerics.Vector<float> a)
+    MNetNumerics.Matrix<float> ComputeOperatorM(MNetNumerics.Vector<float> a)
     {
         if(a.At(0) == 0 && a.At(1) == 0 && a.At(2) == 0)
         {
@@ -138,8 +194,17 @@ public class Tetrahedron : MonoBehaviour
         }
     }
 
-    //cache face normals
-    public void ComputeFaceNormals()
+    //computes the volume of the tetrahedral mesh
+    void ComputeTetVolume()
+    {
+        var a = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[1].coords - meshVerts[0].coords);
+        var b = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[2].coords - meshVerts[0].coords);
+        var c = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[3].coords - meshVerts[0].coords);
+        vol = (1 / 6) * (VectorUtils.CrossProduct(a, b)) * c;
+    }
+
+    //computes the face normals
+    void ComputeFaceNormals()
     {
         int j = 0;
         for (int i = 0; i < tetMesh.triangles.Length; i += 3)
