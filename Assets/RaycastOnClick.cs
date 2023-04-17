@@ -17,8 +17,12 @@ public class RaycastOnClick : MonoBehaviour
             if (Physics.Raycast(ray, out hitInfo))
             {
                 Debug.Log("Hit object: " + hitInfo.collider.gameObject.name);
-                Debug.Log("Hit point: " + hitInfo.point);
+                Debug.Log("Hit wcf point: " + hitInfo.point);
                 Debug.Log("Hit normal: " + hitInfo.normal);
+                Debug.Log("Barycentric coords" + hitInfo.barycentricCoordinate);
+
+                var go = hitInfo.collider.gameObject;
+                var tet = go.GetComponent<Tetrahedron>();
             }
         }
     }

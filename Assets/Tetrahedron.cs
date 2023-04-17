@@ -19,6 +19,7 @@ public class Tetrahedron : MonoBehaviour
 {
     //debug
     public bool drawNormals = false;
+    public bool collisionDetected = false;
 
     public List<FEM_Vert> meshVerts = new List<FEM_Vert>();
     public Mesh tetMesh;
@@ -30,6 +31,7 @@ public class Tetrahedron : MonoBehaviour
     public float k = 1.9f; //young modulus, in GPa
     public float v = 0.41f; //poisson ratio;
     public float vol; //tet volume
+    public Vector3 centroid; //tet centroid
 
     //[Parker and O'Brien 2009] variables
     //3x3 identity matrix
@@ -56,7 +58,19 @@ public class Tetrahedron : MonoBehaviour
     {
         BuildCustomMeshCollider();
         ComputeFaceNormals();
+        ComputeCentroid();
+        FractureSetup();
+    }
 
+    void Update()
+    {
+        if (drawNormals) DrawFaceNormals();
+
+        if (collisionDetected) FractureSetup();
+    }
+
+    void FractureSetup()
+    {
         Du.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[1].coords - meshVerts[0].coords));
         Du.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[2].coords - meshVerts[0].coords));
         Du.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[3].coords - meshVerts[0].coords));
@@ -69,7 +83,7 @@ public class Tetrahedron : MonoBehaviour
             transform.TransformPoint(meshVerts[3].coords - meshVerts[0].coords)));
 
         B = Du.Inverse();
-        F = Dx* B;
+        F = Dx * B;
 
         var v0 = meshVerts[0].coords;
         B2.SetColumn(0, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v0.x, v0.y, v0.z, 1 }));
@@ -81,6 +95,7 @@ public class Tetrahedron : MonoBehaviour
         B2.SetColumn(3, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v3.x, v3.y, v3.z, 1 }));
         B2 = B2.Inverse();
 
+        //p is the 3x4 matrix containing the world positions of each vertex in homogeneous coordinates
         var p0 = transform.TransformPoint(v0);
         p.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumerics(p0));
         var p1 = transform.TransformPoint(v1);
@@ -117,6 +132,14 @@ public class Tetrahedron : MonoBehaviour
         var s_eigenvectors = s_evd.EigenVectors;
 
         //compute fi = Q * s * ni for each vert
+        foreach (FEM_Vert v in meshVerts)
+        { 
+            v.Fi.Clear();
+            v.FiPlus.Clear();
+            v.FiMin.Clear();
+            v.SetFiPlus.Clear();
+            v.SetFiMin.Clear();
+        }
         for (int i = 0; i < meshVerts.Count(); i++)
         {
             FEM_Vert v = meshVerts[i];
@@ -129,7 +152,7 @@ public class Tetrahedron : MonoBehaviour
         MNetNumerics.Matrix<float> sMin = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
         for (int i = 0; i < 3; i++)
         {
-            sPlus += Mathf.Max(0.0f, ((float)s_eigenvalues.At(i).Magnitude)) 
+            sPlus += Mathf.Max(0.0f, ((float)s_eigenvalues.At(i).Magnitude))
                 * ComputeOperatorM(s_eigenvectors.Column(i));
             sMin += Mathf.Min(0.0f, ((float)s_eigenvalues.At(i).Magnitude))
                 * ComputeOperatorM(s_eigenvectors.Column(i));
@@ -149,9 +172,9 @@ public class Tetrahedron : MonoBehaviour
             //}
         }
 
-        ComputeTetVolume();
+        ComputeVolume();
         float halfVol = -vol / 2;
-        for (int i = 0; i<meshVerts.Count() ; i++)
+        for (int i = 0; i < meshVerts.Count(); i++)
         {
             FEM_Vert v = meshVerts[i];
             MNetNumerics.Vector<float> forceSum = MNetNumerics.Vector<float>.Build.Dense(3);
@@ -174,11 +197,7 @@ public class Tetrahedron : MonoBehaviour
             v.SetFiPlus.Add(v.FiPlus);
             v.SetFiMin.Add(v.FiMin);
         }
-    }
-
-    void Update()
-    {
-        if (drawNormals) DrawFaceNormals();
+        collisionDetected = false;
     }
 
     //computes the m operator defined in the Parker and O'Brien paper
@@ -195,12 +214,23 @@ public class Tetrahedron : MonoBehaviour
     }
 
     //computes the volume of the tetrahedral mesh
-    void ComputeTetVolume()
+    void ComputeVolume()
     {
         var a = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[1].coords - meshVerts[0].coords);
         var b = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[2].coords - meshVerts[0].coords);
         var c = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[3].coords - meshVerts[0].coords);
         vol = (1 / 6) * (VectorUtils.CrossProduct(a, b)) * c;
+    }
+
+    //computes the centroid of the tetrahedra
+    void ComputeCentroid()
+    {
+        Vector3 sum = Vector3.zero;
+        foreach (FEM_Vert v in meshVerts)
+        {
+            sum += v.coords;
+        }
+        centroid = sum / 4;
     }
 
     //computes the face normals
@@ -283,7 +313,7 @@ public class Tetrahedron : MonoBehaviour
     }
 
     // Draw the edges of the tetrahedron
-    public void DrawMesh()
+    public void DrawMesh(Color color)
     {
         List<Vector3> verts = tetMesh.vertices.ToList();
         List<Vector3> wcf_verts = new List<Vector3>();
@@ -292,11 +322,28 @@ public class Tetrahedron : MonoBehaviour
             wcf_verts.Add(transform.TransformPoint(v));
         }
 
-        Debug.DrawLine(wcf_verts[0], wcf_verts[1], Color.red);
-        Debug.DrawLine(wcf_verts[0], wcf_verts[2], Color.red);
-        Debug.DrawLine(wcf_verts[0], wcf_verts[3], Color.red);
-        Debug.DrawLine(wcf_verts[1], wcf_verts[2], Color.red);
-        Debug.DrawLine(wcf_verts[1], wcf_verts[3], Color.red);
-        Debug.DrawLine(wcf_verts[2], wcf_verts[3], Color.red);        
+        Debug.DrawLine(wcf_verts[0], wcf_verts[1], color);
+        Debug.DrawLine(wcf_verts[0], wcf_verts[2], color);
+        Debug.DrawLine(wcf_verts[0], wcf_verts[3], color);
+        Debug.DrawLine(wcf_verts[1], wcf_verts[2], color);
+        Debug.DrawLine(wcf_verts[1], wcf_verts[3], color);
+        Debug.DrawLine(wcf_verts[2], wcf_verts[3], color);        
+    }
+
+    public void ApplyCollisionForceToNodes(Vector3 f)
+    {
+        foreach (FEM_Vert v in meshVerts)
+        {
+            v.Fi += VectorUtils.ConvertUnityVec3ToNumerics(f);
+        }
+    }
+
+    //for debug only. helps visualize which tets are affected by the fracture
+    public bool tetRendered = false;
+    public void RenderTet()
+    {
+        var meshRenderer = gameObject.AddComponent<MeshRenderer>();
+        meshRenderer.material = Resources.Load<Material>("Material_1");
+        tetRendered= true;
     }
 }

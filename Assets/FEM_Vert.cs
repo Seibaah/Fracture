@@ -8,7 +8,10 @@ public class FEM_Vert : MonoBehaviour
     //debug
     [SerializeField]
     private Vector3 Fi_Debug = new Vector3();
+    static int fractureLeft = 5;
 
+    //parent fem mesh
+    public FEM_Mesh parentMesh;
     //tets incident on this vertex
     public List<Tetrahedron> tets = new List<Tetrahedron>(); 
 
@@ -30,6 +33,7 @@ public class FEM_Vert : MonoBehaviour
     public Vector3 coords;
     public float k = 1.9f; //young modulus, in GPa
     public float v = 0.41f; //poisson ratio;
+    public float tau = 0.1f; //fracture threshold
 
     void Start()
     {
@@ -51,6 +55,38 @@ public class FEM_Vert : MonoBehaviour
 
         var maxEigenval = st_eigenval[st_eigenval.Count- 1];
         //Debug.Log("Max eigenval: " +maxEigenval);
+        if (maxEigenval.Real > tau && fractureLeft > 0)
+        {
+            fractureLeft--;
+            var maxEigenvec = st_eigenvec.Column(st_eigenval.Count - 1);
+
+            //FlagAffectedVerts();
+
+            //separate mesh along the plane
+            var fracturePlane = new Plane(VectorUtils.ConvertNumericsVec3ToUnity(maxEigenvec), coords);
+            //Debug.Log("fracture origin vert " + this.gameObject.transform.name);
+            Debug.DrawRay(coords, VectorUtils.ConvertNumericsVec3ToUnity(maxEigenvec), Color.blue);
+
+            var allTets = parentMesh.tets;
+            List<Tetrahedron> leftSide = new List<Tetrahedron>();
+            List<Tetrahedron> rightSide = new List<Tetrahedron>();
+            foreach (Tetrahedron tet in allTets)
+            {
+                if (v.Equals(this)) continue;
+
+                if (fracturePlane.GetSide(tet.centroid) == true) rightSide.Add(tet);
+                else leftSide.Add(tet);
+            }
+
+            if (leftSide.Count > 0 && rightSide.Count > 0)
+            {
+                parentMesh.FractureMesh(leftSide, rightSide);
+            }
+            else
+            {
+                fractureLeft++;
+            }
+        }
     }
 
     void ComputeSeparationTensor()
@@ -72,7 +108,7 @@ public class FEM_Vert : MonoBehaviour
         separationTensor = 0.5f * (-mFiPlus + mSetFiPlusSum + mFiMin - mSetFiMinSum);
     }
 
-    //computes the m operator defined in the Parker and O'Brien paper
+    //computes the m(a) operator defined in Parker and O'Brien's paper
     MNetNumerics.Matrix<float> ComputeOperatorM(MNetNumerics.Vector<float> a)
     {
         if (a.At(0) == 0 && a.At(1) == 0 && a.At(2) == 0)
@@ -83,5 +119,15 @@ public class FEM_Vert : MonoBehaviour
         {
             return (a.ToColumnMatrix() * a.ToRowMatrix()) / (float)a.L2Norm();
         }
+    }
+
+    void FlagAffectedVerts()
+    {
+        //Debug.Log("Fracture, eigenval: " + maxEigenval.Real);
+        Debug.Log("Fracture vert" + gameObject.transform.name);
+        //foreach (Tetrahedron tet in tets)
+        //{
+        //    if (tet.tetRendered == false) tet.RenderTet();
+        //}
     }
 }
