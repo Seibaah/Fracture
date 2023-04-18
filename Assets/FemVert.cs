@@ -47,7 +47,7 @@ public class FemVert : MonoBehaviour
         coords = transform.position;
         if (parentFemMesh.computeFracture)
         {
-            Fi_Debug = VectorUtils.ConvertNumericsVec3ToUnity(Fi);
+            Fi_Debug = VectorUtils.ConvertNumericsVec3ToUnityVec3(Fi);
             ComputeSeparationTensor();
 
             //Debug.Log(separationTensor.ToString());
@@ -66,9 +66,9 @@ public class FemVert : MonoBehaviour
                 //FlagAffectedVerts();
 
                 //separate mesh along the plane
-                var fracturePlane = new Plane(VectorUtils.ConvertNumericsVec3ToUnity(maxEigenvec), coords);
+                var fracturePlane = new Plane(VectorUtils.ConvertNumericsVec3ToUnityVec3(maxEigenvec), coords);
                 Debug.Log("fracture origin vert " + this.gameObject.transform.name);
-                Debug.DrawRay(coords, VectorUtils.ConvertNumericsVec3ToUnity(maxEigenvec), Color.blue);
+                Debug.DrawRay(coords, VectorUtils.ConvertNumericsVec3ToUnityVec3(maxEigenvec), Color.blue);
 
                 var allTets = parentFemMesh.tets;
                 List<Tetrahedron> leftSide = new List<Tetrahedron>();
@@ -119,15 +119,5 @@ public class FemVert : MonoBehaviour
         {
             return (a.ToColumnMatrix() * a.ToRowMatrix()) / (float)a.L2Norm();
         }
-    }
-
-    void FlagAffectedVerts()
-    {
-        //Debug.Log("Fracture, eigenval: " + maxEigenval.Real);
-        Debug.Log("Fracture vert" + gameObject.transform.name);
-        //foreach (Tetrahedron tet in tets)
-        //{
-        //    if (tet.tetRendered == false) tet.RenderTet();
-        //}
     }
 }

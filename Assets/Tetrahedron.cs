@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra.Single;
-using MNetNumerics = MathNet.Numerics.LinearAlgebra;
+using MathNetNumerics = MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Complex;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using UnityEngine.Assertions;
@@ -36,27 +36,26 @@ public class Tetrahedron : MonoBehaviour
     public float v = 0.41f; //poisson ratio;
     public float vol; //tet volume
     public Vector3 centroid; //tet centroid
-    public float mass = 42;
 
     //[Parker and O'Brien 2009] variables
     //3x3 identity matrix
-    public MNetNumerics.Matrix<float> I = MNetNumerics.Matrix<float>.Build.DenseIdentity(3);
+    public MathNetNumerics.Matrix<float> I = MathNetNumerics.Matrix<float>.Build.DenseIdentity(3);
     //element basis matrix
-    public MNetNumerics.Matrix<float> B;
+    public MathNetNumerics.Matrix<float> B;
     //material reference matrix
-    public MNetNumerics.Matrix<float> Du = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
+    public MathNetNumerics.Matrix<float> Du = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
     //world position matrix
-    public MNetNumerics.Matrix<float> Dx = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
+    public MathNetNumerics.Matrix<float> Dx = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
     //velocity matrix
-    public MNetNumerics.Matrix<float> Dv = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
+    public MathNetNumerics.Matrix<float> Dv = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
     //deformation gradient matrix
-    public MNetNumerics.Matrix<float> F;
+    public MathNetNumerics.Matrix<float> F;
 
     //OH99 Variables
     //Beta matrix (16)
-    public MNetNumerics.Matrix<float> B2 = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+    public MathNetNumerics.Matrix<float> B2 = MathNetNumerics.Matrix<float>.Build.Dense(4, 4);
     //X matrix (13)
-    public MNetNumerics.Matrix<float> p = MNetNumerics.Matrix<float>.Build.Dense(3, 4);
+    public MathNetNumerics.Matrix<float> p = MathNetNumerics.Matrix<float>.Build.Dense(3, 4);
 
 
     void Start()
@@ -91,39 +90,39 @@ public class Tetrahedron : MonoBehaviour
 
     void ComputeFracture()
     {
-        Du.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[1].coords - meshVerts[0].coords));
-        Du.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[2].coords - meshVerts[0].coords));
-        Du.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[3].coords - meshVerts[0].coords));
+        Du.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[1].coords - meshVerts[0].coords));
+        Du.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[2].coords - meshVerts[0].coords));
+        Du.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[3].coords - meshVerts[0].coords));
 
-        Dx.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumerics(
+        Dx.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(
             transform.TransformPoint(meshVerts[1].coords - meshVerts[0].coords)));
-        Dx.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumerics(
+        Dx.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(
             transform.TransformPoint(meshVerts[2].coords - meshVerts[0].coords)));
-        Dx.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumerics(
+        Dx.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(
             transform.TransformPoint(meshVerts[3].coords - meshVerts[0].coords)));
 
         B = Du.Inverse();
         F = Dx * B;
 
         var v0 = meshVerts[0].coords;
-        B2.SetColumn(0, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v0.x, v0.y, v0.z, 1 }));
+        B2.SetColumn(0, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v0.x, v0.y, v0.z, 1 }));
         var v1 = meshVerts[1].coords;
-        B2.SetColumn(1, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v1.x, v1.y, v1.z, 1 }));
+        B2.SetColumn(1, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v1.x, v1.y, v1.z, 1 }));
         var v2 = meshVerts[2].coords;
-        B2.SetColumn(2, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v2.x, v2.y, v2.z, 1 }));
+        B2.SetColumn(2, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v2.x, v2.y, v2.z, 1 }));
         var v3 = meshVerts[3].coords;
-        B2.SetColumn(3, MNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v3.x, v3.y, v3.z, 1 }));
+        B2.SetColumn(3, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v3.x, v3.y, v3.z, 1 }));
         B2 = B2.Inverse();
 
         //p is the 3x4 matrix containing the world positions of each vertex in homogeneous coordinates
         var p0 = transform.TransformPoint(v0);
-        p.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumerics(p0));
+        p.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(p0));
         var p1 = transform.TransformPoint(v1);
-        p.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumerics(p1));
+        p.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(p1));
         var p2 = transform.TransformPoint(v2);
-        p.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumerics(p2));
+        p.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(p2));
         var p3 = transform.TransformPoint(v3);
-        p.SetColumn(3, VectorUtils.ConvertUnityVec3ToNumerics(p3));
+        p.SetColumn(3, VectorUtils.ConvertUnityVec3ToNumericsVec3(p3));
 
         //polar decomposition on F
         var F_svd = F.Svd();
@@ -164,12 +163,12 @@ public class Tetrahedron : MonoBehaviour
         {
             FemVert v = meshVerts[i];
             var ni = faceNormals[i++];
-            var Fi = Q * s * VectorUtils.ConvertUnityVec3ToNumerics(ni);
+            var Fi = Q * s * VectorUtils.ConvertUnityVec3ToNumericsVec3(ni);
             v.Fi += Fi; //accumulate the force on the vert node
         }
 
-        MNetNumerics.Matrix<float> sPlus = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
-        MNetNumerics.Matrix<float> sMin = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
+        MathNetNumerics.Matrix<float> sPlus = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
+        MathNetNumerics.Matrix<float> sMin = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
         for (int i = 0; i < 3; i++)
         {
             sPlus += Mathf.Max(0.0f, ((float)s_eigenvalues.At(i).Magnitude))
@@ -197,7 +196,7 @@ public class Tetrahedron : MonoBehaviour
         for (int i = 0; i < meshVerts.Count(); i++)
         {
             FemVert v = meshVerts[i];
-            MNetNumerics.Vector<float> forceSum = MNetNumerics.Vector<float>.Build.Dense(3);
+            MathNetNumerics.Vector<float> forceSum = MathNetNumerics.Vector<float>.Build.Dense(3);
             for (int j = 0; j < 4; j++)
             {
                 float innerSum = 0;
@@ -220,11 +219,11 @@ public class Tetrahedron : MonoBehaviour
     }
 
     //computes the m operator defined in the Parker and O'Brien paper
-    MNetNumerics.Matrix<float> ComputeOperatorM(MNetNumerics.Vector<float> a)
+    MathNetNumerics.Matrix<float> ComputeOperatorM(MathNetNumerics.Vector<float> a)
     {
         if(a.At(0) == 0 && a.At(1) == 0 && a.At(2) == 0)
         {
-            return MNetNumerics.Matrix<float>.Build.Sparse(3, 3);
+            return MathNetNumerics.Matrix<float>.Build.Sparse(3, 3);
         }
         else
         {
@@ -235,9 +234,9 @@ public class Tetrahedron : MonoBehaviour
     //computes the volume of the tetrahedral mesh
     void ComputeVolume()
     {
-        var a = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[1].coords - meshVerts[0].coords);
-        var b = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[2].coords - meshVerts[0].coords);
-        var c = VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[3].coords - meshVerts[0].coords);
+        var a = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[1].coords - meshVerts[0].coords);
+        var b = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[2].coords - meshVerts[0].coords);
+        var c = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[3].coords - meshVerts[0].coords);
         vol = (1 / 6) * (VectorUtils.CrossProduct(a, b)) * c;
     }
 
@@ -354,12 +353,9 @@ public class Tetrahedron : MonoBehaviour
     {
         foreach (FemVert v in meshVerts)
         {
-            v.Fi += VectorUtils.ConvertUnityVec3ToNumerics(f);
+            v.Fi += VectorUtils.ConvertUnityVec3ToNumericsVec3(f);
         }
-        //ComputeFracture();
 
-        parentFemMesh.targetTet = this;
-        parentFemMesh.separatingForce = f;
         StartCoroutine(parentFemMesh.EnableFractureComputation());
     }
 
@@ -380,19 +376,19 @@ public class Tetrahedron : MonoBehaviour
         var c = transform.TransformPoint(meshVerts[2].coords);
         var d = transform.TransformPoint(meshVerts[3].coords);
 
-        var PBCD = MNetNumerics.Matrix<float>.Build.Dense(4,4);
+        var PBCD = MathNetNumerics.Matrix<float>.Build.Dense(4,4);
         PBCD.SetColumn(0, new float[] { p.x, p.y, p.z, 1 });
         PBCD.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
         PBCD.SetColumn(2, new float[] { c.x, c.y, c.z, 1 });
         PBCD.SetColumn(3, new float[] { d.x, d.y, d.z, 1 });
 
-        var APCD = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+        var APCD = MathNetNumerics.Matrix<float>.Build.Dense(4, 4);
         APCD.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
         APCD.SetColumn(1, new float[] { p.x, p.y, p.z, 1 });
         APCD.SetColumn(2, new float[] { c.x, c.y, c.z, 1 });
         APCD.SetColumn(3, new float[] { d.x, d.y, d.z, 1 });
 
-        var ABPD = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+        var ABPD = MathNetNumerics.Matrix<float>.Build.Dense(4, 4);
         ABPD.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
         ABPD.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
         ABPD.SetColumn(2, new float[] { p.x, p.y, p.z, 1 });
@@ -404,7 +400,7 @@ public class Tetrahedron : MonoBehaviour
         //ABCP.SetColumn(1, new float[] { c.x, c.y, c.z, 1 });
         //ABCP.SetColumn(3, new float[] { p.x, p.y, p.z, 1 });
 
-        var ABCD = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+        var ABCD = MathNetNumerics.Matrix<float>.Build.Dense(4, 4);
         ABCD.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
         ABCD.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
         ABCD.SetColumn(2, new float[] { c.x, c.y, c.z, 1 });

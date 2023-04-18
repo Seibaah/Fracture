@@ -2,183 +2,78 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.Windows;
-using static Unity.IO.LowLevel.Unsafe.AsyncReadManagerMetrics;
 
 public class FemMesh : MonoBehaviour
 {
-    [SerializeField] bool drawTets = true;
-    public bool parseInit = false;
     static int id = 0;
-    public Color color = Color.red;
-    public bool computeFracture = false;
 
-    public bool bricksAssigned = true;
-    public List<GameObject> brickPrefabs = new List<GameObject>();
-    public List<GameObject> instantiatedBricks = new List<GameObject>();
+    [Header("Debug")]
+    [SerializeField] bool drawTets = true;
+    [SerializeField] Color color = Color.red;
 
-    public int maxFractureEventsCount = 10;
+    [Header("Simulation Parameters")]
+    public InitializationMode initializationMode = InitializationMode.RegularStart; //default mode
+    public int maxFractureEventsCount = 10; //per frame
     public int curFractureEventsCount = 0;
+    public float femElementMass = 42f;
+    public bool computeFracture = false;
+    public float computeFractureTimeWindow = 0.25f;
 
-    // Define a list to store the parsed data
-    public List<Vector3> verts_data = new List<Vector3>();
-    public List<int[]> tets_data = new List<int[]>();
+    [Header("FEM Elements")]
     public List<Tetrahedron> tets = new List<Tetrahedron>();
-
-    //FEM data structures
     public List<FemVert> verts = new List<FemVert>();
 
-    //Tet and separating force pair
-    public bool applyImpulseOnStart = false;
-    public Tetrahedron targetTet;
-    public Vector3 separatingForce;
+    [Header("Splinters")]
+    public List<GameObject> brickPrefabs = new List<GameObject>();
+    List<GameObject> instantiatedBricks = new List<GameObject>();
+
+    //parsed data
+    List<Vector3> rawVerts;
+    List<int[]> rawTets;
 
     void Start()
     {
-        if (parseInit) ParseInit();
+        if (initializationMode == InitializationMode.RegularStart) RegularInitialization();
+        else StartCoroutine(EnableFractureComputation());
 
+        //add a rigidbody and compute its mass
         var rb = gameObject.AddComponent<Rigidbody>();
-        var totalMass = 0f;
-        tets.ForEach(t => totalMass += t.mass);
-        rb.mass = totalMass;
-
-        if (applyImpulseOnStart)
-        {
-            //applyImpulseOnStart= false;
-            //rb.AddForce(separatingForce, ForceMode.Impulse);
-            //separatingForce = Vector3.zero;
-            StartCoroutine(EnableFractureComputation());
-        }
+        rb.mass = tets.Count * femElementMass;
     }
 
     void Update()
     {
+        //draw tet colliders if flag is true
         if (drawTets) tets.Where(tet => drawTets).ToList().ForEach(tet => tet.DrawMesh(color));
-    
-        if (tets.Count == 0 && verts.Count == 0) { Destroy(gameObject); }
 
         curFractureEventsCount = 0;
     }
 
-    //called by a vert that has a fracture plane dividing the mesh in 2 non-empty sets
-    public void FractureMesh(List<Tetrahedron> leftSide, List<Tetrahedron> rightSide)
+    /// <summary>
+    /// Initializes the FemMesh by parsing FEM data and creating respective
+    /// tetrahedra and vertex objects.
+    /// </summary>
+    void RegularInitialization()
     {
-        //partition the tets
-        var leftParent = new GameObject("Tets Mesh (" + id++ + ")");
-        var leftTetsParent = new GameObject("tets");
-        leftTetsParent.transform.parent = leftParent.transform;
-        var left_FEM = leftParent.AddComponent<FemMesh>();
-        left_FEM.tets = leftSide;
-        foreach (Tetrahedron tet in leftSide)
-        {
-            tet.gameObject.transform.parent = leftTetsParent.transform;
-            tet.parentFemMesh = left_FEM;
-        }
-
-        var rightParent = new GameObject("Tets Mesh (" + id++ + ")");
-        var rightTetsParent = new GameObject("tets");
-        rightTetsParent.transform.parent = rightParent.transform;
-        var right_FEM = rightParent.AddComponent<FemMesh>();
-        right_FEM.tets = rightSide;
-        right_FEM.color = Color.cyan;
-        foreach (Tetrahedron tet in rightSide)
-        {
-            tet.gameObject.transform.parent = rightTetsParent.transform;
-            tet.parentFemMesh = right_FEM;
-        }
-
-        tets.RemoveAll(t => leftSide.Contains(t));
-        tets.RemoveAll(t => rightSide.Contains(t));
-
-        //partition the verts
-        List<FemVert> leftVerts = new List<FemVert>();
-        left_FEM.tets.ForEach(t => leftVerts.AddRange(t.meshVerts));
-
-        List<FemVert> rightVerts = new List<FemVert>();
-        right_FEM.tets.ForEach(t => rightVerts.AddRange(t.meshVerts));
-
-        var intersection = leftVerts.Intersect(rightVerts).ToList();
-        foreach(FemVert v in intersection)
-        {
-            var vertCopyGo = GameObject.Instantiate(v.gameObject);
-            foreach (Tetrahedron tet in right_FEM.tets)
-            {
-                if (tet.meshVerts.Contains(v))
-                {
-                    var index = tet.meshVerts.IndexOf(v);
-                    tet.meshVerts[index] = vertCopyGo.GetComponent<FemVert>();
-                }
-            }
-        }
-        right_FEM.UpdateVerts();
-
-        //GameObject leftVertsParent = new GameObject("verts");
-        //leftVertsParent.transform.parent = left_FEM.gameObject.transform;
-        //foreach (FEM_Vert v in leftVerts)
-        //{
-        //    v.gameObject.transform.parent = leftVertsParent.transform;
-        //}
-        left_FEM.verts = leftVerts.Distinct().ToList();
-        left_FEM.UpdateVerts();
-
-        if (left_FEM.tets.Contains(targetTet))
-        {
-            left_FEM.separatingForce = separatingForce;
-            left_FEM.applyImpulseOnStart = true;
-        }
-        else
-        {
-            right_FEM.separatingForce = separatingForce;
-            right_FEM.applyImpulseOnStart = true;
-        }
-        verts.Clear();
-    }
-
-    public void UpdateVerts()
-    {
-        verts.Clear();
-        tets.ForEach(t => verts.AddRange(t.meshVerts));
-
-        GameObject vertsParent = new GameObject("verts");
-        vertsParent.transform.parent = gameObject.transform;
-
-        verts.ForEach(v => v.gameObject.transform.parent = vertsParent.transform);
-        verts = verts.Distinct().ToList();
-
-        foreach(FemVert v in verts)
-        {
-            v.tets.Clear();
-            v.parentFemMesh = this;
-        }
-        foreach (Tetrahedron tet in tets)
-        {
-            foreach (FemVert v in tet.meshVerts)
-            {
-                v.tets.Add(tet);
-            }
-        }
-    }
-
-    void ParseInit()
-    {
-        TetrahedralmeshParser.ParseTetMeshFiles(this, Application.dataPath + "/Tetrahedral Mesh Data/verts.csv",
-            Application.dataPath + "/Tetrahedral Mesh Data/tets.csv");
+        TetrahedralmeshParser.ParseTetMeshFiles(Application.dataPath + "/Tetrahedral Mesh Data/verts.csv",
+            Application.dataPath + "/Tetrahedral Mesh Data/tets.csv",
+            out rawVerts, out rawTets);
 
         //create fem vert objects
         GameObject vertsParent = new GameObject();
         vertsParent.transform.parent = gameObject.transform;
         vertsParent.transform.name = "verts";
-
-        int i = 0;
-        foreach (Vector3 vert in verts_data)
+        for (int i = 0; i<rawVerts.Count(); i++)
         {
-            var vertGo = new GameObject("v" + i++);
+            var vert = rawVerts[i];
+            var vertGo = new GameObject("v" + i);
             vertGo.transform.parent = vertsParent.transform;
             var fem_vert = vertGo.AddComponent<FemVert>();
             fem_vert.coords = vert;
-            verts.Add(fem_vert);
             fem_vert.parentFemMesh = this;
             fem_vert.id = vertGo.transform.name;
+
+            verts.Add(fem_vert);
         }
 
         //create tet objects
@@ -187,7 +82,7 @@ public class FemMesh : MonoBehaviour
         tetsParent.transform.name = "tets";
 
         int id = 0;
-        foreach (int[] values in tets_data)
+        foreach (int[] values in rawTets)
         {
             //get the tets verts indices
             int i0 = values[0];
@@ -214,19 +109,18 @@ public class FemMesh : MonoBehaviour
             go.transform.parent = tetsParent.transform;
         }
 
+        //create splinters and assign each to a tet
         var splintersParent = new GameObject("splinters");
         splintersParent.transform.parent = gameObject.transform;
         var spawner = ScriptableObject.CreateInstance<BrickSpawner>();
-        spawner.SpawnBricks(splintersParent, brickPrefabs);
+        instantiatedBricks = spawner.SpawnBricksDemo_1(splintersParent, brickPrefabs);
 
-        instantiatedBricks = spawner.instantiatedBricks;
-        bricksAssigned = false;
         foreach (Tetrahedron tet in tets)
         {
             List<GameObject> bricksInTet = new List<GameObject>();
             foreach (GameObject brick in instantiatedBricks)
             {
-                if(tet.IsPointInside(transform.TransformPoint(brick.transform.position)))
+                if (tet.IsPointInside(transform.TransformPoint(brick.transform.position)))
                 {
                     bricksInTet.Add(brick);
                 }
@@ -241,20 +135,120 @@ public class FemMesh : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter(Collision collision)
-    {
-        foreach (ContactPoint cp in collision.contacts)
+
+    /// <summary>
+    /// Separates a finite element method mesh into two parts defined by leftSide and rightSide.
+    /// <para></para>* The leftSide list contains all tetrahedrons on the left side of the fracture plane.
+    /// <para></para>* The rightSide list contains all tetrahedrons on the right side of the fracture plane.
+    /// </summary>
+    /// <param name="leftSide">Contains all tetrahedrons on the left side of the fracture plane</param>
+    /// <param name="rightSide">Contains all tetrahedrons on the right side of the fracture plane</param>
+    public void FractureMesh(List<Tetrahedron> leftSide, List<Tetrahedron> rightSide)
+    {        
+        //init
+        var leftParent = new GameObject("Tets Mesh (" + id++ + ")");
+        var leftTetsParent = new GameObject("tets");
+        leftTetsParent.transform.parent = leftParent.transform;
+        var left_FEM = leftParent.AddComponent<FemMesh>();
+        left_FEM.initializationMode = InitializationMode.FractureStart;
+        //assign tetrahedra to new FemMesh and update relations
+        left_FEM.tets = leftSide;
+        foreach (Tetrahedron tet in leftSide)
         {
-            if (cp.otherCollider.GetComponent<FemMesh>() != null)
+            tet.gameObject.transform.parent = leftTetsParent.transform;
+            tet.parentFemMesh = left_FEM;
+        }
+
+        //same as we just did, but for the other FemMesh
+        var rightParent = new GameObject("Tets Mesh (" + id++ + ")");
+        var rightTetsParent = new GameObject("tets");
+        rightTetsParent.transform.parent = rightParent.transform;
+        var right_FEM = rightParent.AddComponent<FemMesh>();
+        right_FEM.initializationMode = InitializationMode.FractureStart;
+        right_FEM.tets = rightSide;
+        foreach (Tetrahedron tet in rightSide)
+        {
+            tet.gameObject.transform.parent = rightTetsParent.transform;
+            tet.parentFemMesh = right_FEM;
+        }
+
+
+        //compute the vertices used in each of the new FemMeshes
+        List<FemVert> leftVerts = new List<FemVert>();
+        left_FEM.tets.ForEach(t => leftVerts.AddRange(t.meshVerts));
+        List<FemVert> rightVerts = new List<FemVert>();
+        right_FEM.tets.ForEach(t => rightVerts.AddRange(t.meshVerts));
+
+        //compute shared vertices
+        var intersection = leftVerts.Intersect(rightVerts).ToList();
+
+        //duplicate shared vertices and recompute vertex sets
+        foreach(FemVert v in intersection)
+        {
+            var vertCopyGo = GameObject.Instantiate(v.gameObject);
+            foreach (Tetrahedron tet in right_FEM.tets)
             {
-                Debug.Log("FEM MESH TO FEM MESH COLLISION");
+                if (tet.meshVerts.Contains(v))
+                {
+                    var index = tet.meshVerts.IndexOf(v);
+                    tet.meshVerts[index] = vertCopyGo.GetComponent<FemVert>();
+                }
+            }
+        }
+        right_FEM.UpdateVerts();
+
+        left_FEM.verts = leftVerts.Distinct().ToList();
+        left_FEM.UpdateVerts();
+
+        //destroy the old FemMesh
+        Destroy(gameObject);
+    }
+
+    /// <summary>
+    /// Updates FemMesh vertex data. Called automatically after FractureMesh.
+    /// </summary>
+    void UpdateVerts()
+    {
+        verts.Clear();
+        tets.ForEach(t => verts.AddRange(t.meshVerts));
+
+        GameObject vertsParent = new GameObject("verts");
+        vertsParent.transform.parent = gameObject.transform;
+
+        verts.ForEach(v => v.gameObject.transform.parent = vertsParent.transform);
+        verts = verts.Distinct().ToList();
+
+        //update the tetrahedra referenced by the vertices
+        foreach(FemVert v in verts)
+        {
+            v.tets.Clear();
+            v.parentFemMesh = this;
+        }
+        foreach (Tetrahedron tet in tets)
+        {
+            foreach (FemVert v in tet.meshVerts)
+            {
+                v.tets.Add(tet);
             }
         }
     }
+
+    /// <summary>
+    /// Coroutine that opens a time window to compute fractures in the mesh
+    /// </summary>
+    /// <returns></returns>
     public IEnumerator EnableFractureComputation()
     {
         computeFracture = true;
-        yield return new WaitForSeconds(0.25f);
+        yield return new WaitForSecondsRealtime(computeFractureTimeWindow);
         computeFracture = false;
     }
+
+    public enum InitializationMode
+    {
+        RegularStart,
+        FractureStart
+    }
 }
+
+
