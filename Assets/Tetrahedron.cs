@@ -90,27 +90,27 @@ public class Tetrahedron : MonoBehaviour
 
     void ComputeFracture()
     {
-        Du.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[1].coords - meshVerts[0].coords));
-        Du.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[2].coords - meshVerts[0].coords));
-        Du.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[3].coords - meshVerts[0].coords));
+        Du.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[1].pos - meshVerts[0].pos));
+        Du.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[2].pos - meshVerts[0].pos));
+        Du.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[3].pos - meshVerts[0].pos));
 
         Dx.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(
-            transform.TransformPoint(meshVerts[1].coords - meshVerts[0].coords)));
+            transform.TransformPoint(meshVerts[1].pos - meshVerts[0].pos)));
         Dx.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(
-            transform.TransformPoint(meshVerts[2].coords - meshVerts[0].coords)));
+            transform.TransformPoint(meshVerts[2].pos - meshVerts[0].pos)));
         Dx.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(
-            transform.TransformPoint(meshVerts[3].coords - meshVerts[0].coords)));
+            transform.TransformPoint(meshVerts[3].pos - meshVerts[0].pos)));
 
         B = Du.Inverse();
         F = Dx * B;
 
-        var v0 = meshVerts[0].coords;
+        var v0 = meshVerts[0].pos;
         B2.SetColumn(0, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v0.x, v0.y, v0.z, 1 }));
-        var v1 = meshVerts[1].coords;
+        var v1 = meshVerts[1].pos;
         B2.SetColumn(1, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v1.x, v1.y, v1.z, 1 }));
-        var v2 = meshVerts[2].coords;
+        var v2 = meshVerts[2].pos;
         B2.SetColumn(2, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v2.x, v2.y, v2.z, 1 }));
-        var v3 = meshVerts[3].coords;
+        var v3 = meshVerts[3].pos;
         B2.SetColumn(3, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v3.x, v3.y, v3.z, 1 }));
         B2 = B2.Inverse();
 
@@ -234,9 +234,9 @@ public class Tetrahedron : MonoBehaviour
     //computes the volume of the tetrahedral mesh
     void ComputeVolume()
     {
-        var a = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[1].coords - meshVerts[0].coords);
-        var b = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[2].coords - meshVerts[0].coords);
-        var c = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[3].coords - meshVerts[0].coords);
+        var a = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[1].pos - meshVerts[0].pos);
+        var b = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[2].pos - meshVerts[0].pos);
+        var c = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[3].pos - meshVerts[0].pos);
         vol = (1 / 6) * (VectorUtils.CrossProduct(a, b)) * c;
     }
 
@@ -246,7 +246,7 @@ public class Tetrahedron : MonoBehaviour
         Vector3 sum = Vector3.zero;
         foreach (FemVert v in meshVerts)
         {
-            sum += v.coords;
+            sum += v.pos;
         }
         centroid = sum / 4;
     }
@@ -271,10 +271,10 @@ public class Tetrahedron : MonoBehaviour
     void BuildCustomMeshCollider()
     {
         List<Vector3> vertCoords = new List<Vector3>();
-        vertCoords.Add(meshVerts[0].coords);
-        vertCoords.Add(meshVerts[1].coords);
-        vertCoords.Add(meshVerts[2].coords);
-        vertCoords.Add(meshVerts[3].coords);
+        vertCoords.Add(meshVerts[0].pos);
+        vertCoords.Add(meshVerts[1].pos);
+        vertCoords.Add(meshVerts[2].pos);
+        vertCoords.Add(meshVerts[3].pos);
 
         // Define the vertices of the tetrahedron
         Vector3[] vertices = new Vector3[] {
@@ -371,10 +371,10 @@ public class Tetrahedron : MonoBehaviour
     //TODO Cite source
     public bool IsPointInside(Vector3 p)
     {
-        var a = transform.TransformPoint(meshVerts[0].coords);
-        var b = transform.TransformPoint(meshVerts[1].coords);
-        var c = transform.TransformPoint(meshVerts[2].coords);
-        var d = transform.TransformPoint(meshVerts[3].coords);
+        var a = transform.TransformPoint(meshVerts[0].pos);
+        var b = transform.TransformPoint(meshVerts[1].pos);
+        var c = transform.TransformPoint(meshVerts[2].pos);
+        var d = transform.TransformPoint(meshVerts[3].pos);
 
         var PBCD = MathNetNumerics.Matrix<float>.Build.Dense(4,4);
         PBCD.SetColumn(0, new float[] { p.x, p.y, p.z, 1 });

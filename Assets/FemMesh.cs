@@ -1,3 +1,5 @@
+//#define DEBUG_MODE_ON
+
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +9,7 @@ public class FemMesh : MonoBehaviour
 {
     static int id = 0;
 
-    [Header("Debug")]
+    [Header("DebugDraw")]
     [SerializeField] bool drawTets = true;
     [SerializeField] Color color = Color.red;
 
@@ -69,9 +71,11 @@ public class FemMesh : MonoBehaviour
             var vertGo = new GameObject("v" + i);
             vertGo.transform.parent = vertsParent.transform;
             var fem_vert = vertGo.AddComponent<FemVert>();
-            fem_vert.coords = vert;
+            fem_vert.pos = vert;
             fem_vert.parentFemMesh = this;
+#if DEBUG_MODE_ON
             fem_vert.id = vertGo.transform.name;
+#endif
 
             verts.Add(fem_vert);
         }

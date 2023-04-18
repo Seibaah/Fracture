@@ -1,75 +1,82 @@
+//#define DEBUG_MODE_ON
+
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using MNetNumerics = MathNet.Numerics.LinearAlgebra;
+using MathNetNumerics = MathNet.Numerics.LinearAlgebra;
 
 public class FemVert : MonoBehaviour
 {
-    //debug
-    [SerializeField]
-    private Vector3 Fi_Debug = new Vector3();
+#if DEBUG_MODE_ON
+    [Header("Debug")]
+    [SerializeField] Vector3 Fi_Debug = new Vector3();
     public string id;
+#endif
 
-    //parent fem mesh
+    [Header("FEM Elements")]
+    public Vector3 pos;
     public FemMesh parentFemMesh;
-    //tets incident on this vertex
-    public List<Tetrahedron> tets = new List<Tetrahedron>(); 
+    public List<Tetrahedron> tets = new List<Tetrahedron>(); //tetrahedra incident on this vertex
 
-    //elastic force exerted by all incident tets on this vertex
-    public MNetNumerics.Vector<float> Fi = MNetNumerics.Vector<float>.Build.Dense(3); 
+    [Header("Total Elastic Force")]
+    public MathNetNumerics.Vector<float> Fi = MathNetNumerics.Vector<float>.Build.Dense(3);
 
-    //tensile component of the force and its set
-    public MNetNumerics.Vector<float> FiPlus = MNetNumerics.Vector<float>.Build.Dense(3);
-    public List<MNetNumerics.Vector<float>> SetFiPlus = new List<MNetNumerics.Vector<float>>();
+    [Header("Tensile Forces")]
+    public MathNetNumerics.Vector<float> FiPlus = MathNetNumerics.Vector<float>.Build.Dense(3);
+    public List<MathNetNumerics.Vector<float>> SetFiPlus = new List<MathNetNumerics.Vector<float>>();
 
-    //compressive component of the force and its set
-    public MNetNumerics.Vector<float> FiMin = MNetNumerics.Vector<float>.Build.Dense(3);
-    public List<MNetNumerics.Vector<float>> SetFiMin = new List<MNetNumerics.Vector<float>>();
+    [Header("Compressive Forces")]
+    public MathNetNumerics.Vector<float> FiMin = MathNetNumerics.Vector<float>.Build.Dense(3);
+    public List<MathNetNumerics.Vector<float>> SetFiMin = new List<MathNetNumerics.Vector<float>>();
 
-    //separation tensor
-    public MNetNumerics.Matrix<float> separationTensor = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
+    [Header("Separation Tensor")]
+    public MathNetNumerics.Matrix<float> separationTensor = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
 
-    //physical properties of the vertex
-    public Vector3 coords;
+    [Header("Simulation Parameters")]
     public float k = 1.9f; //young modulus, in GPa
     public float v = 0.41f; //poisson ratio;
-    public float tau = 0.25f; //fracture threshold
+    public float tau = 0.25f; //material toughness threshold
 
     void Start()
     {
-        gameObject.transform.position = coords;
-        gameObject.transform.localScale = new Vector3(0.05f, 0.05f, 0.05f);
-        gameObject.transform.parent = this.gameObject.transform;
+        gameObject.transform.position = pos;
     }
 
     void Update()
     {
-        coords = transform.position;
+        pos = transform.position;
         if (parentFemMesh.computeFracture)
         {
+#if DEBUG_MODE_ON
             Fi_Debug = VectorUtils.ConvertNumericsVec3ToUnityVec3(Fi);
+#endif
             ComputeSeparationTensor();
 
-            //Debug.Log(separationTensor.ToString());
+#if DEBUG_MODE_ON
+            Debug.Log(separationTensor.ToString());
+#endif
+            //Compute eigenvalues of the separation tensor
             var st_evd = separationTensor.Evd();
             var st_eigenval = st_evd.EigenValues;
             var st_eigenvec = st_evd.EigenVectors;
-
             var maxEigenval = st_eigenval[st_eigenval.Count - 1];
+
+            //fracture may occur if the max eigenvalue of the tensor exceeds the toughness threshold paramater
+            //and if we haven't exceeded the allowed fracture events count for the current frame
             if (maxEigenval.Real > tau
                 && parentFemMesh.curFractureEventsCount < parentFemMesh.maxFractureEventsCount)
             {
-
-                //Debug.Log("Max eigenval: " + maxEigenval);
+#if DEBUG_MODE_ON
+                Debug.Log("Max eigenval: " + maxEigenval);
+#endif
+                //create a fracture plane whose normal is the eigenvector of the max eigenvalue of the separation tensor
                 var maxEigenvec = st_eigenvec.Column(st_eigenval.Count - 1);
-
-                //FlagAffectedVerts();
-
-                //separate mesh along the plane
-                var fracturePlane = new Plane(VectorUtils.ConvertNumericsVec3ToUnityVec3(maxEigenvec), coords);
+                var fracturePlane = new Plane(VectorUtils.ConvertNumericsVec3ToUnityVec3(maxEigenvec), pos);
+#if DEBUG_MODE_ON
                 Debug.Log("fracture origin vert " + this.gameObject.transform.name);
-                Debug.DrawRay(coords, VectorUtils.ConvertNumericsVec3ToUnityVec3(maxEigenvec), Color.blue);
-
+                Debug.DrawRay(pos, VectorUtils.ConvertNumericsVec3ToUnityVec3(maxEigenvec), Color.blue);
+#endif
+                //compute tetrahedra left and right of the plane
                 var allTets = parentFemMesh.tets;
                 List<Tetrahedron> leftSide = new List<Tetrahedron>();
                 List<Tetrahedron> rightSide = new List<Tetrahedron>();
@@ -81,6 +88,7 @@ public class FemVert : MonoBehaviour
                     else leftSide.Add(tet);
                 }
 
+                //plane must divide mesh in 2 non-empty sets to cause fracture
                 if (leftSide.Count > 0 && rightSide.Count > 0)
                 {
                     parentFemMesh.FractureMesh(leftSide, rightSide);
@@ -89,17 +97,22 @@ public class FemVert : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Computes the separation tensor defined in O'Brien, J. F., & Hodgins, J. K. (1999). 
+    /// Graphical modeling and animation of brittle fracture. 
+    /// Proceedings of the 26th annual conference on Computer graphics and interactive techniques, 27-34. ACM.
+    /// </summary>
     void ComputeSeparationTensor()
     {
-        MNetNumerics.Matrix<float> mFiPlus = ComputeOperatorM(FiPlus);
-        MNetNumerics.Matrix<float> mSetFiPlusSum = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
+        MathNetNumerics.Matrix<float> mFiPlus = ComputeOperatorM(FiPlus);
+        MathNetNumerics.Matrix<float> mSetFiPlusSum = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
         for (int i = 0; i < SetFiPlus.Count; i++)
         {
             mSetFiPlusSum += ComputeOperatorM(SetFiPlus[i]);
         }
 
-        MNetNumerics.Matrix<float> mFiMin = ComputeOperatorM(FiMin);
-        MNetNumerics.Matrix<float> mSetFiMinSum = MNetNumerics.Matrix<float>.Build.Dense(3, 3);
+        MathNetNumerics.Matrix<float> mFiMin = ComputeOperatorM(FiMin);
+        MathNetNumerics.Matrix<float> mSetFiMinSum = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
         for (int i = 0; i < SetFiPlus.Count; i++)
         {
             mSetFiMinSum += ComputeOperatorM(SetFiPlus[i]);
@@ -108,12 +121,18 @@ public class FemVert : MonoBehaviour
         separationTensor = 0.5f * (-mFiPlus + mSetFiPlusSum + mFiMin - mSetFiMinSum);
     }
 
-    //computes the m(a) operator defined in Parker and O'Brien's paper
-    MNetNumerics.Matrix<float> ComputeOperatorM(MNetNumerics.Vector<float> a)
+    /// <summary>
+    /// Computes the m(A) matrix operator defined in O'Brien, J. F., & Hodgins, J. K. (1999). 
+    /// Graphical modeling and animation of brittle fracture. 
+    /// Proceedings of the 26th annual conference on Computer graphics and interactive techniques, 27-34. ACM.
+    /// </summary>
+    /// <param name="a">Vector in R3</param>
+    /// <returns>3x3 symmetric matrix that has magnitude(a) as its only non-zero eigenvalue</returns>
+    MathNetNumerics.Matrix<float> ComputeOperatorM(MathNetNumerics.Vector<float> a)
     {
         if (a.At(0) == 0 && a.At(1) == 0 && a.At(2) == 0)
         {
-            return MNetNumerics.Matrix<float>.Build.Sparse(3, 3);
+            return MathNetNumerics.Matrix<float>.Build.Sparse(3, 3);
         }
         else
         {

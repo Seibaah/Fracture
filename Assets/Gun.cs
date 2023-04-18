@@ -16,7 +16,7 @@ public class Gun : MonoBehaviour
         // create a new sphere game object with a collider
         GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         sphere.transform.position = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        sphere.transform.localScale = new Vector3(0.25f, 0.25f, 0.25f);
+        sphere.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
 
         SphereCollider sphereCollider = sphere.AddComponent<SphereCollider>();
 
