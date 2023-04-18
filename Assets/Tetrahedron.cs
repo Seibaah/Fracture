@@ -19,9 +19,13 @@ public class Tetrahedron : MonoBehaviour
 {
     //debug
     public bool drawNormals = false;
-    public bool collisionDetected = false;
+    public int collisionCount = 5;
 
-    public List<FEM_Vert> meshVerts = new List<FEM_Vert>();
+    //parent fem mesh
+    public FemMesh parentFemMesh;
+    public Rigidbody parentFemRb;
+
+    public List<FemVert> meshVerts = new List<FemVert>();
     public Mesh tetMesh;
     public MeshCollider tetCollider;
 
@@ -32,6 +36,7 @@ public class Tetrahedron : MonoBehaviour
     public float v = 0.41f; //poisson ratio;
     public float vol; //tet volume
     public Vector3 centroid; //tet centroid
+    public float mass = 42;
 
     //[Parker and O'Brien 2009] variables
     //3x3 identity matrix
@@ -59,17 +64,32 @@ public class Tetrahedron : MonoBehaviour
         BuildCustomMeshCollider();
         ComputeFaceNormals();
         ComputeCentroid();
-        FractureSetup();
+        ComputeFracture();
     }
 
     void Update()
     {
         if (drawNormals) DrawFaceNormals();
 
-        if (collisionDetected) FractureSetup();
+        if (parentFemRb == null)
+        {
+            parentFemRb = parentFemMesh.gameObject.GetComponent<Rigidbody>();
+        }
+        else if (parentFemRb.velocity.magnitude > 0) 
+        {
+            ComputeFaceNormals();
+            ComputeCentroid();
+        }
+
+        if (parentFemMesh.computeFracture)
+        {
+            ComputeFracture();
+            ComputeFaceNormals();
+            ComputeCentroid();
+        }
     }
 
-    void FractureSetup()
+    void ComputeFracture()
     {
         Du.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[1].coords - meshVerts[0].coords));
         Du.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumerics(meshVerts[2].coords - meshVerts[0].coords));
@@ -132,7 +152,7 @@ public class Tetrahedron : MonoBehaviour
         var s_eigenvectors = s_evd.EigenVectors;
 
         //compute fi = Q * s * ni for each vert
-        foreach (FEM_Vert v in meshVerts)
+        foreach (FemVert v in meshVerts)
         { 
             v.Fi.Clear();
             v.FiPlus.Clear();
@@ -142,7 +162,7 @@ public class Tetrahedron : MonoBehaviour
         }
         for (int i = 0; i < meshVerts.Count(); i++)
         {
-            FEM_Vert v = meshVerts[i];
+            FemVert v = meshVerts[i];
             var ni = faceNormals[i++];
             var Fi = Q * s * VectorUtils.ConvertUnityVec3ToNumerics(ni);
             v.Fi += Fi; //accumulate the force on the vert node
@@ -176,7 +196,7 @@ public class Tetrahedron : MonoBehaviour
         float halfVol = -vol / 2;
         for (int i = 0; i < meshVerts.Count(); i++)
         {
-            FEM_Vert v = meshVerts[i];
+            FemVert v = meshVerts[i];
             MNetNumerics.Vector<float> forceSum = MNetNumerics.Vector<float>.Build.Dense(3);
             for (int j = 0; j < 4; j++)
             {
@@ -197,7 +217,6 @@ public class Tetrahedron : MonoBehaviour
             v.SetFiPlus.Add(v.FiPlus);
             v.SetFiMin.Add(v.FiMin);
         }
-        collisionDetected = false;
     }
 
     //computes the m operator defined in the Parker and O'Brien paper
@@ -226,7 +245,7 @@ public class Tetrahedron : MonoBehaviour
     void ComputeCentroid()
     {
         Vector3 sum = Vector3.zero;
-        foreach (FEM_Vert v in meshVerts)
+        foreach (FemVert v in meshVerts)
         {
             sum += v.coords;
         }
@@ -313,6 +332,7 @@ public class Tetrahedron : MonoBehaviour
     }
 
     // Draw the edges of the tetrahedron
+    //TODO potential object ref not set to an instance of an obj here
     public void DrawMesh(Color color)
     {
         List<Vector3> verts = tetMesh.vertices.ToList();
@@ -332,10 +352,15 @@ public class Tetrahedron : MonoBehaviour
 
     public void ApplyCollisionForceToNodes(Vector3 f)
     {
-        foreach (FEM_Vert v in meshVerts)
+        foreach (FemVert v in meshVerts)
         {
             v.Fi += VectorUtils.ConvertUnityVec3ToNumerics(f);
         }
+        //ComputeFracture();
+
+        parentFemMesh.targetTet = this;
+        parentFemMesh.separatingForce = f;
+        StartCoroutine(parentFemMesh.EnableFractureComputation());
     }
 
     //for debug only. helps visualize which tets are affected by the fracture
@@ -345,5 +370,58 @@ public class Tetrahedron : MonoBehaviour
         var meshRenderer = gameObject.AddComponent<MeshRenderer>();
         meshRenderer.material = Resources.Load<Material>("Material_1");
         tetRendered= true;
+    }
+
+    //TODO Cite source
+    public bool IsPointInside(Vector3 p)
+    {
+        var a = transform.TransformPoint(meshVerts[0].coords);
+        var b = transform.TransformPoint(meshVerts[1].coords);
+        var c = transform.TransformPoint(meshVerts[2].coords);
+        var d = transform.TransformPoint(meshVerts[3].coords);
+
+        var PBCD = MNetNumerics.Matrix<float>.Build.Dense(4,4);
+        PBCD.SetColumn(0, new float[] { p.x, p.y, p.z, 1 });
+        PBCD.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
+        PBCD.SetColumn(2, new float[] { c.x, c.y, c.z, 1 });
+        PBCD.SetColumn(3, new float[] { d.x, d.y, d.z, 1 });
+
+        var APCD = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+        APCD.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
+        APCD.SetColumn(1, new float[] { p.x, p.y, p.z, 1 });
+        APCD.SetColumn(2, new float[] { c.x, c.y, c.z, 1 });
+        APCD.SetColumn(3, new float[] { d.x, d.y, d.z, 1 });
+
+        var ABPD = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+        ABPD.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
+        ABPD.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
+        ABPD.SetColumn(2, new float[] { p.x, p.y, p.z, 1 });
+        ABPD.SetColumn(3, new float[] { d.x, d.y, d.z, 1 });
+
+        //var ABCP = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+        //ABCP.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
+        //ABCP.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
+        //ABCP.SetColumn(1, new float[] { c.x, c.y, c.z, 1 });
+        //ABCP.SetColumn(3, new float[] { p.x, p.y, p.z, 1 });
+
+        var ABCD = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
+        ABCD.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
+        ABCD.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
+        ABCD.SetColumn(2, new float[] { c.x, c.y, c.z, 1 });
+        ABCD.SetColumn(3, new float[] { d.x, d.y, d.z, 1 });
+
+        var detPBCD = PBCD.Determinant();
+        var detAPCD = APCD.Determinant();
+        var detABPD = ABPD.Determinant();
+        //var detABCP = ABCP.Determinant();
+        var detABCD = ABCD.Determinant();
+
+        var u = detPBCD / detABCD;
+        var v = detAPCD / detABCD;
+        var w = detABPD / detABCD;
+        var x = 1 - u - v - w;
+
+        if (u > 0 && v > 0 && w > 0 && x > 0) return true;
+        else return false;
     }
 }

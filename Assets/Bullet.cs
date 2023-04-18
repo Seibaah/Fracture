@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class Bullet : MonoBehaviour
 {
+    public float impactForce;
+
     private void OnCollisionEnter(Collision collision)
     {
         ContactPoint[] contacts = new ContactPoint[collision.contactCount];
@@ -14,15 +16,20 @@ public class Bullet : MonoBehaviour
             var tet = contact.otherCollider.gameObject.GetComponent<Tetrahedron>();
             if (tet is not null)
             {
-                if (tet.collisionDetected == false)
+                if (tet.collisionCount > 0)
                 {
-                    tet.collisionDetected = true;
+                    tet.collisionCount--;
                     //Debug.Log(contact.otherCollider.gameObject.transform.name + " hit\n" +
                     //    "Separation Distance: " + contact.separation);
-                    tet.ApplyCollisionForceToNodes(collision.impulse);
-                    Destroy(gameObject, 2);
+                    tet.ApplyCollisionForceToNodes(contact.normal * impactForce);
+                    tet.parentFemMesh.GetComponent<Rigidbody>().AddForce(contact.normal * impactForce);
                 }
             }
         }
+    }
+
+    void Start()
+    {
+        Destroy(gameObject, 2);
     }
 }

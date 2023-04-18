@@ -164,15 +164,28 @@ MonoBehaviour:
   m_GameObject: {fileID: 220811777}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 07f5b8a4356e8f74790db0737e61868a, type: 3}
+  m_Script: {fileID: 11500000, guid: f40dc8aba13dd8d4b8db64d51ae6bc0c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   drawTets: 1
   parseInit: 1
   color: {r: 1, g: 0, b: 0, a: 1}
+  computeFracture: 0
+  bricksAssigned: 1
+  brickPrefabs:
+  - {fileID: 7363726699482470085, guid: 2f7a07142b697d7449326f32b22bd582, type: 3}
+  - {fileID: 5990352821216582152, guid: ce006bbfd31cea640bcbe0a03877f991, type: 3}
+  - {fileID: 7778132666712347942, guid: 0f5028a4e07e09a4fab3f8577280d422, type: 3}
+  - {fileID: 584797179780353382, guid: c1a2f1b1a4adaa545ad7971ef509b6e2, type: 3}
+  instantiatedBricks: []
+  maxFractureEventsCount: 10
+  curFractureEventsCount: 0
   verts_data: []
   tets: []
   verts: []
+  applyImpulseOnStart: 0
+  targetTet: {fileID: 0}
+  separatingForce: {x: 0, y: 0, z: 0}
 --- !u!1 &311829003
 GameObject:
   m_ObjectHideFlags: 0
@@ -859,7 +872,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3e1a8948b55fd924b9a7657274ed0aa3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  shootingForce: 1500
+  shootingForce: 2000
 --- !u!4 &1312161671
 Transform:
   m_ObjectHideFlags: 0

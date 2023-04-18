@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class TetrahedralmeshParser
 {
-    public static void ParseTetMeshFiles(FEM_Mesh fem, string verts_path, string tets_path)
+    public static void ParseTetMeshFiles(FemMesh fem, string verts_path, string tets_path)
     {
         // Parse verts file
         using (StreamReader reader = new StreamReader(verts_path))

@@ -27,6 +27,7 @@ public class Gun : MonoBehaviour
         // apply the shooting force to the sphere in the forward direction of the shooter
         sphereRigidbody.AddForce(Camera.main.ScreenPointToRay(Input.mousePosition).direction.normalized * shootingForce, ForceMode.Impulse);
 
-        sphere.AddComponent<Bullet>();
+        var bullet = sphere.AddComponent<Bullet>();
+        bullet.impactForce = shootingForce;
     }
 }
