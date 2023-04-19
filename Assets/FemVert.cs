@@ -11,7 +11,7 @@ public class FemVert : MonoBehaviour
     [SerializeField] Vector3 Fi_Debug = new Vector3();
     public string id;
 #endif
-
+    
     [Header("FEM Elements")]
     public Vector3 pos;
     public FemMesh parentFemMesh;
@@ -34,7 +34,7 @@ public class FemVert : MonoBehaviour
     [Header("Simulation Parameters")]
     public float k = 1.9f; //young modulus, in GPa
     public float v = 0.41f; //poisson ratio;
-    public float tau = 0.3f; //material toughness threshold
+    public float tau = 0.2f; //material toughness threshold
 
     void Start()
     {

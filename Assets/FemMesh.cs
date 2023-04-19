@@ -2,7 +2,9 @@
 
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.Contracts;
 using System.Linq;
+using Unity.VisualScripting;
 using UnityEngine;
 using static UnityEditor.PlayerSettings;
 
@@ -39,16 +41,14 @@ public class FemMesh : MonoBehaviour
         if (initializationMode == InitializationMode.RegularStart)
         {
             RegularInitialization();
+            var rb = gameObject.AddComponent<Rigidbody>();
+            rb.mass = tets.Count * femElementMass;
         }
         else
         {
             StartCoroutine(EnableFractureComputation());
             ValidateMeshBoundaries();
         }
-
-        //add a rigidbody and compute its mass
-        var rb = gameObject.AddComponent<Rigidbody>();
-        rb.mass = tets.Count * femElementMass;
     }
 
     void Update()
@@ -148,9 +148,9 @@ public class FemMesh : MonoBehaviour
     }
 
     /// <summary>
-    /// Validates that no 2 tetrahedra in the mesh are connected by only an edge (hinge)
-    /// or point (joint). If this scenario is detected the mesh is fractured in 2 sets 
-    /// to solve the boundary issue
+    /// Validate mesh continuity such that no 2 tetrahedra are connected only
+    /// by a path passing through a joint (1 shared vertex) or hinge (2 shared vertices)
+    /// If mesh is invalid then it is split in 2 valid sets.
     /// </summary>
     void ValidateMeshBoundaries()
     {
@@ -164,56 +164,62 @@ public class FemMesh : MonoBehaviour
 
                 if (sharedVerts.Count() == 1 || sharedVerts.Count() == 2)
                 {
-                    var sharedVertsList = sharedVerts.ToArray();
-                    Vector3 originPoint;
-                    if (sharedVerts.Count() == 2) {
-                        originPoint = Vector3.Lerp(sharedVertsList[0].pos, sharedVertsList[1].pos, 0.5f);
-                    }
-                    else
-                    {
-                        originPoint = sharedVertsList[0].pos;
-                    }
+                    //compute the sets of tetrahedra satisfying the mesh continuity condition
+                    var leftSideSet = ComputeMeshConnectedSet(tet, new List<Tetrahedron>() { tet }, 
+                        new List<Tetrahedron>(), new List<FemVert>());
 
-                    var fracturePlane = new Plane(Vector3.right, originPoint);
+                    //this means despite the 2 tets sharing 1 or 2 vertices,
+                    //there is an indirect path between them that is valid
+                    if (leftSideSet.Contains(tet2)) continue; 
 
-                    //compute tetrahedra left and right of the plane
-                    List<Tetrahedron> leftSide = new List<Tetrahedron>();
-                    List<Tetrahedron> rightSide = new List<Tetrahedron>();
-                    foreach (Tetrahedron t in tets)
-                    {
-                        if (fracturePlane.GetSide(t.centroid) == true) rightSide.Add(t);
-                        else leftSide.Add(t);
-                    }
-
-                    //plane must divide mesh in 2 non-empty sets to cause fracture
-                    if (leftSide.Count > 0 && rightSide.Count > 0)
-                    {
-                        FractureMesh(leftSide, rightSide);
-                        return;
-                    }
-
-                    fracturePlane = new Plane(Vector3.forward, originPoint);
-
-                    //compute tetrahedra left and right of the plane
-                    leftSide.Clear();
-                    rightSide.Clear();
-                    foreach (Tetrahedron t in tets)
-                    {
-                        if (fracturePlane.GetSide(t.centroid) == true) rightSide.Add(t);
-                        else leftSide.Add(t);
-                    }
-
-                    //plane must divide mesh in 2 non-empty sets to cause fracture
-                    if (leftSide.Count > 0 && rightSide.Count > 0)
-                    {
-                        FractureMesh(leftSide, rightSide);
-                    }
-
+                    FractureMesh(leftSideSet, tets.Except(leftSideSet).ToList());
                     return;
                 }
             }
         }
     }
+
+    /// <summary>
+    /// Computes the set of tetrahedra that satisfy the continuity condition that
+    /// states that all tetrahedra in the mesh must share 3 vertices with their neighbors.
+    /// </summary>
+    /// <param name="curTet">Current tetrahedron that's being evaluated</param>
+    /// <param name="set">Set of tetrahedra that satisy the continuity condition</param>
+    /// <param name="visitedTets">List of already visited tetrahedra</param>
+    /// <param name="visitedVerts">List of already visited vertices</param>
+    /// <returns>The updated set of tetrahedra that satisy the continuity condition</returns>
+    public List<Tetrahedron> ComputeMeshConnectedSet(Tetrahedron curTet, List<Tetrahedron> set, 
+        List<Tetrahedron> visitedTets, List<FemVert> visitedVerts)
+    {
+        if (visitedTets.Contains(curTet)) return set;
+        visitedTets.Add(curTet);
+
+        foreach (FemVert v in curTet.meshVerts)
+        {
+            if (visitedVerts.Contains(v)) continue;
+            visitedVerts.Add(v);
+
+            foreach (Tetrahedron tet in v.tets)
+            {
+                if (!set.Contains(tet))
+                {
+                    var sharedVerts = tet.meshVerts.Intersect(curTet.meshVerts);
+                    if (sharedVerts.Count() == 3)
+                    {
+                        set.Add(tet);
+                        if (!visitedTets.Contains(tet))
+                        {
+                            ComputeMeshConnectedSet(tet, set, visitedTets, visitedVerts);
+                        }
+                    }
+                }
+            }
+        }
+
+        return set;
+    }
+
+
 
     /// <summary>
     /// Separates a finite element method mesh into two parts defined by leftSide and rightSide.
@@ -278,6 +284,16 @@ public class FemMesh : MonoBehaviour
 
         left_FEM.verts = leftVerts.Distinct().ToList();
         left_FEM.UpdateVerts();
+
+        //inherit current mesh velocity
+        var inheritedVelocity = gameObject.GetComponent<Rigidbody>().velocity;
+        var left_FEM_rb = left_FEM.AddComponent<Rigidbody>();
+        left_FEM_rb.velocity = inheritedVelocity;
+        left_FEM_rb.mass = left_FEM.tets.Count * left_FEM.femElementMass;
+
+        var right_FEM_rb = right_FEM.AddComponent<Rigidbody>();
+        right_FEM_rb.velocity = inheritedVelocity;
+        right_FEM_rb.mass = right_FEM.tets.Count * right_FEM.femElementMass;
 
         //destroy the old FemMesh
         Destroy(gameObject);

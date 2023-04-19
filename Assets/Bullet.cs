@@ -14,8 +14,7 @@ public class Bullet : MonoBehaviour
 
     /// <summary>
     /// Called when the bullet collides with another object.
-    /// If the object is a tetrahedra we apply the collision force to its nodes 
-    /// and the parent rigidbody.
+    /// If the object is a tetrahedra we apply the collision force to its nodes
     /// </summary>
     /// <param name="collision">Contains collision event information</param>
     private void OnCollisionEnter(Collision collision)
@@ -33,7 +32,6 @@ public class Bullet : MonoBehaviour
                     "Separation Distance: " + contact.separation);
 #endif
                 tet.ApplyCollisionForceToNodes(contact.point, contact.normal * impactForce);
-                tet.parentFemMesh.GetComponent<Rigidbody>().AddForce(contact.normal * impactForce);
             }
         }
     }
