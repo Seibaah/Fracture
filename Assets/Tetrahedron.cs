@@ -1,109 +1,105 @@
-﻿using System;
+﻿//#define DEBUG_MODE_ON
+
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using UnityEditor;
 using UnityEngine;
-using UnityEngine.Rendering;
-using MathNet.Numerics;
-using MathNet.Numerics.LinearAlgebra.Single;
 using MathNetNumerics = MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.LinearAlgebra.Complex;
-using MathNet.Numerics.LinearAlgebra.Factorization;
-using UnityEngine.Assertions;
-using MathNet.Numerics.LinearAlgebra;
-using MathNet.Numerics.Distributions;
 
 public class Tetrahedron : MonoBehaviour
 {
-    //debug
+#if DEBUG_MODE_ON
+    [Header("Debug")]
     public bool drawNormals = false;
-    public int collisionCount = 5;
+#endif
 
-    //parent fem mesh
+    [Header("FEM Elements")]
     public FemMesh parentFemMesh;
     public Rigidbody parentFemRb;
 
-    public List<FemVert> meshVerts = new List<FemVert>();
+    [Header("Tetrahedron")]
+    public Vector3 centroid;
     public Mesh tetMesh;
     public MeshCollider tetCollider;
+    public List<FemVert> meshVerts = new List<FemVert>();
+    float vol;
+    int[] vertexOpposedFaces = new int[4]; 
+    Vector3[] faceNormals = new Vector3[4];
 
-    public int[] vertexOpposedFaces = new int[4];
-    public Vector3[] faceNormals = new Vector3[4];
-
+    [Header("Material Parameters")]
     public float k = 1.9f; //young modulus, in GPa
     public float v = 0.41f; //poisson ratio;
-    public float vol; //tet volume
-    public Vector3 centroid; //tet centroid
 
-    //[Parker and O'Brien 2009] variables
-    //3x3 identity matrix
-    public MathNetNumerics.Matrix<float> I = MathNetNumerics.Matrix<float>.Build.DenseIdentity(3);
-    //element basis matrix
-    public MathNetNumerics.Matrix<float> B;
-    //material reference matrix
-    public MathNetNumerics.Matrix<float> Du = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
-    //world position matrix
-    public MathNetNumerics.Matrix<float> Dx = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
-    //velocity matrix
-    public MathNetNumerics.Matrix<float> Dv = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
-    //deformation gradient matrix
-    public MathNetNumerics.Matrix<float> F;
+    /// <summary>
+    /// Variables defined in Parker, G., & O'Brien, J. F. (2009). 
+    /// Real-time deformation and fracture in a game environment. 
+    /// In ACM SIGGRAPH 2009 Talks (p. 18). ACM.
+    /// </summary>
+    readonly MathNetNumerics.Matrix<float> I = MathNetNumerics.Matrix<float>.Build.DenseIdentity(3); //3x3 identity matrix
+    MathNetNumerics.Matrix<float> B; //element basis matrix Beta (1)
+    MathNetNumerics.Matrix<float> Du = MathNetNumerics.Matrix<float>.Build.Dense(3, 3); //material reference matrix
+    MathNetNumerics.Matrix<float> Dx = MathNetNumerics.Matrix<float>.Build.Dense(3, 3); //world position matrix
+    MathNetNumerics.Matrix<float> F; //deformation gradient matrix (1)
 
-    //OH99 Variables
-    //Beta matrix (16)
-    public MathNetNumerics.Matrix<float> B2 = MathNetNumerics.Matrix<float>.Build.Dense(4, 4);
-    //X matrix (13)
-    public MathNetNumerics.Matrix<float> p = MathNetNumerics.Matrix<float>.Build.Dense(3, 4);
+    /// <summary>
+    /// Variables defined in O'Brien, J. F., & Hodgins, J. K. (1999). 
+    /// Graphical modeling and animation of brittle fracture. 
+    /// Proceedings of the 26th annual conference on Computer graphics and interactive techniques, 27-34. ACM.
+    /// </summary>
+    MathNetNumerics.Matrix<float> B2 = MathNetNumerics.Matrix<float>.Build.Dense(4, 4); //Beta matrix (16)
+    MathNetNumerics.Matrix<float> X = MathNetNumerics.Matrix<float>.Build.Dense(3, 4); //X matrix (13)
 
 
     void Start()
     {
-        BuildCustomMeshCollider();
+        BuildTetrahedronMeshCollider();
         ComputeFaceNormals();
         ComputeCentroid();
-        ComputeFracture();
+        ComputeVolume();
     }
 
     void Update()
     {
+#if DEBUG_MODE_ON
         if (drawNormals) DrawFaceNormals();
+#endif
 
         if (parentFemRb == null)
         {
             parentFemRb = parentFemMesh.gameObject.GetComponent<Rigidbody>();
         }
-        else if (parentFemRb.velocity.magnitude > 0) 
-        {
-            ComputeFaceNormals();
-            ComputeCentroid();
-        }
 
-        if (parentFemMesh.computeFracture)
+        //run fracture algorithm is parent FEM mesh enables it
+        if (parentFemMesh.computeFracture) 
         {
-            ComputeFracture();
             ComputeFaceNormals();
             ComputeCentroid();
+            ComputeFracture();
         }
     }
 
+    /// <summary>
+    /// Computes and assigns tensile and compressive forces acting on each tetrahedron vertex.
+    /// Based on the work described in O'Brien, J. F., & Hodgins, J. K. (1999) and
+    /// Parker, G., & O'Brien, J. F. (2009)
+    /// </summary>
     void ComputeFracture()
     {
-        Du.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[1].pos - meshVerts[0].pos));
-        Du.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[2].pos - meshVerts[0].pos));
-        Du.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[3].pos - meshVerts[0].pos));
+        //Finite Element Formulation steps. Parker, G., & O'Brien, J. F. (2009)
+        Du.SetColumn(0, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[1].pos - meshVerts[0].pos));
+        Du.SetColumn(1, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[2].pos - meshVerts[0].pos));
+        Du.SetColumn(2, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[3].pos - meshVerts[0].pos));
 
-        Dx.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(
+        Dx.SetColumn(0, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(
             transform.TransformPoint(meshVerts[1].pos - meshVerts[0].pos)));
-        Dx.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(
+        Dx.SetColumn(1, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(
             transform.TransformPoint(meshVerts[2].pos - meshVerts[0].pos)));
-        Dx.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(
+        Dx.SetColumn(2, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(
             transform.TransformPoint(meshVerts[3].pos - meshVerts[0].pos)));
 
         B = Du.Inverse();
         F = Dx * B;
 
+        //Finite Element Discretization. O'Brien, J. F., & Hodgins, J. K. (1999)
         var v0 = meshVerts[0].pos;
         B2.SetColumn(0, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v0.x, v0.y, v0.z, 1 }));
         var v1 = meshVerts[1].pos;
@@ -114,43 +110,44 @@ public class Tetrahedron : MonoBehaviour
         B2.SetColumn(3, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v3.x, v3.y, v3.z, 1 }));
         B2 = B2.Inverse();
 
-        //p is the 3x4 matrix containing the world positions of each vertex in homogeneous coordinates
         var p0 = transform.TransformPoint(v0);
-        p.SetColumn(0, VectorUtils.ConvertUnityVec3ToNumericsVec3(p0));
+        X.SetColumn(0, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(p0));
         var p1 = transform.TransformPoint(v1);
-        p.SetColumn(1, VectorUtils.ConvertUnityVec3ToNumericsVec3(p1));
+        X.SetColumn(1, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(p1));
         var p2 = transform.TransformPoint(v2);
-        p.SetColumn(2, VectorUtils.ConvertUnityVec3ToNumericsVec3(p2));
+        X.SetColumn(2, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(p2));
         var p3 = transform.TransformPoint(v3);
-        p.SetColumn(3, VectorUtils.ConvertUnityVec3ToNumericsVec3(p3));
+        X.SetColumn(3, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(p3));
 
-        //polar decomposition on F
+        //Compute Polar Decomposition of the Deformation Gradient F using its Single Value Decomposition.
+        //F. Parker, G., & O'Brien, J. F. (2009)
         var F_svd = F.Svd();
-        var S = F_svd.S;
+        var S = F_svd.S; //S -> Σ in most literature
         var VT = F_svd.VT;
         var V = VT.Transpose();
         var W = F_svd.U;
-
-        //F = U*P = Q*A in Parker, O'Brien
-        var P = V * S * VT; //positive definite = V * Σ * VT
-        var U = W * VT; //unitary = W * VT
+        //F = U*P = Q*A
+        var P = V * S * VT; //positive definite matrix = V * Σ * VT
+        var U = W * VT; //unitary matrix = W * VT
         //remame vars for consistency with the paper
         var Q = U;
         var A = P;
 
-        var Fpow = Q.Transpose() * F; //deformation gradient minus rotation
+        //Factoring out rotational effect from deformation gradient. F. Parker, G., & O'Brien, J. F. (2009)
+        var Fpow = Q.Transpose() * F;
         var EpsPow = 0.5f * (Fpow + Fpow.Transpose()) - I; //corotational cauchy strain
 
-        //1st and 2nd lamé parameters
+        //Compute 1st and 2nd lamé parameters. F. Parker, G., & O'Brien, J. F. (2009)
         var mu = k / (2 * (1 + v));
         var lambda = (k * v) / ((1 + v) * (1 - 2 * v));
 
+        //Compute element stress. F. Parker, G., & O'Brien, J. F. (2009)
         var s = lambda * EpsPow.Trace() * I + 2 * mu * EpsPow;
         var s_evd = s.Evd();
         var s_eigenvalues = s_evd.EigenValues;
         var s_eigenvectors = s_evd.EigenVectors;
 
-        //compute fi = Q * s * ni for each vert
+        //Reset all forces on each vertex element
         foreach (FemVert v in meshVerts)
         { 
             v.Fi.Clear();
@@ -159,14 +156,16 @@ public class Tetrahedron : MonoBehaviour
             v.SetFiPlus.Clear();
             v.SetFiMin.Clear();
         }
+        //Compute fi = Q * s * ni for each vertex element. F. Parker, G., & O'Brien, J. F. (2009)
         for (int i = 0; i < meshVerts.Count(); i++)
         {
             FemVert v = meshVerts[i];
             var ni = faceNormals[i++];
-            var Fi = Q * s * VectorUtils.ConvertUnityVec3ToNumericsVec3(ni);
+            var Fi = Q * s * VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(ni);
             v.Fi += Fi; //accumulate the force on the vert node
         }
 
+        //Compute Force Decomposition. O'Brien, J. F., & Hodgins, J. K. (1999)
         MathNetNumerics.Matrix<float> sPlus = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
         MathNetNumerics.Matrix<float> sMin = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
         for (int i = 0; i < 3; i++)
@@ -177,21 +176,22 @@ public class Tetrahedron : MonoBehaviour
                 * ComputeOperatorM(s_eigenvectors.Column(i));
         }
 
-        //debug
+#if DEBUG_MODE_ON       
+        var test = s - (sPlus + sMin);
+        if (test.Equals(Matrix<double>.Build.Dense(3, 3, 0.0)))
         {
-            //var test = s - (sPlus + sMin);
-            //if (test.Equals(Matrix<double>.Build.Dense(3, 3, 0.0)))
-            //{
-            //    Debug.Log("The matrix is only zeros.");
-            //}
-            //else
-            //{
-            //    Debug.Log("The matrix is not only zeros.");
-            //    Debug.Log(test.ToString());
-            //}
+            Debug.Log("The matrix is only zeros.");
         }
+        else
+        {
+            //in practice test matrix isn't 0 most of the time due to rounding errors
+            //values are in in E-08 or smaller so it's acceptable
+            Debug.Log("The matrix is not only zeros."); 
+            Debug.Log(test.ToString());
+        }
+#endif
 
-        ComputeVolume();
+        //Compute tensile and compressive forces acting on each vertex. O'Brien, J. F., & Hodgins, J. K. (1999)
         float halfVol = -vol / 2;
         for (int i = 0; i < meshVerts.Count(); i++)
         {
@@ -207,7 +207,7 @@ public class Tetrahedron : MonoBehaviour
                         innerSum = B2.At(j, l) * B2.At(i, k) * sPlus.At(k, l);
                     }
                 }
-                forceSum += p.Column(j) * innerSum;
+                forceSum += X.Column(j) * innerSum;
             }
             var FiPlus = halfVol * forceSum;
             v.FiPlus += FiPlus;
@@ -218,7 +218,13 @@ public class Tetrahedron : MonoBehaviour
         }
     }
 
-    //computes the m operator defined in the Parker and O'Brien paper
+    /// <summary>
+    /// Computes the m(A) matrix operator defined in O'Brien, J. F., & Hodgins, J. K. (1999). 
+    /// Graphical modeling and animation of brittle fracture. 
+    /// Proceedings of the 26th annual conference on Computer graphics and interactive techniques, 27-34. ACM.
+    /// </summary>
+    /// <param name="a">Vector in R3</param>
+    /// <returns>3x3 symmetric matrix that has magnitude(a) as its only non-zero eigenvalue</returns>
     MathNetNumerics.Matrix<float> ComputeOperatorM(MathNetNumerics.Vector<float> a)
     {
         if(a.At(0) == 0 && a.At(1) == 0 && a.At(2) == 0)
@@ -227,20 +233,59 @@ public class Tetrahedron : MonoBehaviour
         }
         else
         {
-            return (a.ToColumnMatrix() * a.ToRowMatrix())/ (float) a.L2Norm();
+            return (a.ToColumnMatrix() * a.ToRowMatrix()) / (float) a.L2Norm();
         }
     }
 
-    //computes the volume of the tetrahedral mesh
+    /// <summary>
+    /// Creates a tetrahedron Mesh Collider
+    /// </summary>
+    void BuildTetrahedronMeshCollider()
+    {
+        // Define the vertices of the tetrahedron
+        List<Vector3> vertCoords = new List<Vector3>();
+        vertCoords.Add(meshVerts[0].pos);
+        vertCoords.Add(meshVerts[1].pos);
+        vertCoords.Add(meshVerts[2].pos);
+        vertCoords.Add(meshVerts[3].pos);
+
+        //Create tetrahedron mesh
+        tetMesh = new Mesh();
+        tetMesh.vertices = vertCoords.ToArray();
+        tetMesh.SetIndices(new int[] { 0, 2, 1, 0, 3, 2, 0, 1, 3, 1, 2, 3 }, MeshTopology.Triangles, 0);
+        tetMesh.RecalculateNormals();
+        tetMesh.RecalculateBounds();
+
+        //cache index of vertex opposed to the corresponding traingle in the collider face array. Used for normals calculation
+        vertexOpposedFaces[0] = 3;
+        vertexOpposedFaces[1] = 1;
+        vertexOpposedFaces[2] = 2;
+        vertexOpposedFaces[3] = 0;
+
+        //create mesh filter for rendering
+        var meshFilter = gameObject.AddComponent<MeshFilter>();
+        meshFilter.mesh = tetMesh;
+
+        //add new collider to gameobject
+        tetCollider = gameObject.AddComponent<MeshCollider>();
+        tetCollider.sharedMesh = tetMesh;
+        tetCollider.convex = true;
+    }
+
+    /// <summary>
+    /// Computes the volume of the tetrahedron
+    /// </summary>
     void ComputeVolume()
     {
-        var a = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[1].pos - meshVerts[0].pos);
-        var b = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[2].pos - meshVerts[0].pos);
-        var c = VectorUtils.ConvertUnityVec3ToNumericsVec3(meshVerts[3].pos - meshVerts[0].pos);
+        var a = VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[1].pos - meshVerts[0].pos);
+        var b = VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[2].pos - meshVerts[0].pos);
+        var c = VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[3].pos - meshVerts[0].pos);
         vol = (1 / 6) * (VectorUtils.CrossProduct(a, b)) * c;
     }
 
-    //computes the centroid of the tetrahedra
+    /// <summary>
+    /// Computes the centroid of the tetrahedron
+    /// </summary>
     void ComputeCentroid()
     {
         Vector3 sum = Vector3.zero;
@@ -251,7 +296,9 @@ public class Tetrahedron : MonoBehaviour
         centroid = sum / 4;
     }
 
-    //computes the face normals
+    /// <summary>
+    /// Computes the tetrahedron face normals
+    /// </summary>
     void ComputeFaceNormals()
     {
         int j = 0;
@@ -267,55 +314,9 @@ public class Tetrahedron : MonoBehaviour
         }
     }
 
-    //builds a tetrahderal mesh collider=
-    void BuildCustomMeshCollider()
-    {
-        List<Vector3> vertCoords = new List<Vector3>();
-        vertCoords.Add(meshVerts[0].pos);
-        vertCoords.Add(meshVerts[1].pos);
-        vertCoords.Add(meshVerts[2].pos);
-        vertCoords.Add(meshVerts[3].pos);
-
-        // Define the vertices of the tetrahedron
-        Vector3[] vertices = new Vector3[] {
-            new Vector3(0f, 0f, 1f),
-            new Vector3(1f, 0f, -1f),
-            new Vector3(-1f, 0f, -1f),
-            new Vector3(0f, 1f, 0f)
-        };
-        Vector2[] uvs = new Vector2[vertices.Length];
-
-        for (int i = 0; i < vertices.Length; i++)
-        {
-            Vector3 vertex = vertices[i];
-            uvs[i] = new Vector2(vertex.x, vertex.z);
-        }
-
-        tetMesh = new Mesh();
-        tetMesh.vertices = vertCoords.ToArray();
-        tetMesh.SetIndices(new int[] { 0, 2, 1, 0, 3, 2, 0, 1, 3, 1, 2, 3 }, MeshTopology.Triangles, 0);
-        tetMesh.uv = uvs;
-        tetMesh.RecalculateNormals();
-        tetMesh.RecalculateBounds();
-
-        //vertices opposed to the ordered triangle faces
-        vertexOpposedFaces[0] = 3;
-        vertexOpposedFaces[1] = 1;
-        vertexOpposedFaces[2] = 2;
-        vertexOpposedFaces[3] = 0;
-
-        var meshFilter = gameObject.AddComponent<MeshFilter>();
-        meshFilter.mesh = tetMesh;
-
-        tetCollider = gameObject.AddComponent<MeshCollider>();
-        tetCollider.sharedMesh = tetMesh;
-        tetCollider.convex = true;
-
-        //var meshRenderer = gameObject.AddComponent<MeshRenderer>();
-        //meshRenderer.material = Resources.Load<Material>("Material_1");
-    }
-
-    //Draw the face normals of the tet
+    /// <summary>
+    /// Draw the tetrahedron face normals 
+    /// </summary>
     public void DrawFaceNormals()
     {
         for (int i = 0; i < tetMesh.triangles.Length; i += 3)
@@ -330,9 +331,11 @@ public class Tetrahedron : MonoBehaviour
         }
     }
 
-    // Draw the edges of the tetrahedron
-    //TODO potential object ref not set to an instance of an obj here
-    public void DrawMesh(Color color)
+    /// <summary>
+    /// Draw the tetrahedron mesh collider
+    /// </summary>
+    /// <param name="color">Color to be used for line drawing</param>
+    public void DrawMeshCollider(Color color)
     {
         List<Vector3> verts = tetMesh.vertices.ToList();
         List<Vector3> wcf_verts = new List<Vector3>();
@@ -349,27 +352,29 @@ public class Tetrahedron : MonoBehaviour
         Debug.DrawLine(wcf_verts[2], wcf_verts[3], color);        
     }
 
+    //TODO use barycentric weights
+    /// <summary>
+    /// Distribute an impact force to the tetrahedron vertices using barycentrix weights
+    /// </summary>
+    /// <param name="f">Force the colliding objects applies to the tetrahedron</param>
     public void ApplyCollisionForceToNodes(Vector3 f)
     {
         foreach (FemVert v in meshVerts)
         {
-            v.Fi += VectorUtils.ConvertUnityVec3ToNumericsVec3(f);
+            v.Fi += VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(f);
         }
 
         StartCoroutine(parentFemMesh.EnableFractureComputation());
     }
 
-    //for debug only. helps visualize which tets are affected by the fracture
-    public bool tetRendered = false;
-    public void RenderTet()
-    {
-        var meshRenderer = gameObject.AddComponent<MeshRenderer>();
-        meshRenderer.material = Resources.Load<Material>("Material_1");
-        tetRendered= true;
-    }
-
-    //TODO Cite source
-    public bool IsPointInside(Vector3 p)
+    /// <summary>
+    /// Checks if a points is inside or on the boundary of the tetrahedron.
+    /// Based on Ericson, C. (2005). Real-time collision detection (1st ed.). 
+    /// Morgan Kaufmann Publishers. Page 48, Chapter 3.4: Barycentric coordinates.
+    /// </summary>
+    /// <param name="p">Point in world coordinates</param>
+    /// <returns>True if the point is in the tetrahedron or on its boundary, false otherwise</returns>
+    public bool ContainsPoint(Vector3 p)
     {
         var a = transform.TransformPoint(meshVerts[0].pos);
         var b = transform.TransformPoint(meshVerts[1].pos);
@@ -394,12 +399,6 @@ public class Tetrahedron : MonoBehaviour
         ABPD.SetColumn(2, new float[] { p.x, p.y, p.z, 1 });
         ABPD.SetColumn(3, new float[] { d.x, d.y, d.z, 1 });
 
-        //var ABCP = MNetNumerics.Matrix<float>.Build.Dense(4, 4);
-        //ABCP.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
-        //ABCP.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
-        //ABCP.SetColumn(1, new float[] { c.x, c.y, c.z, 1 });
-        //ABCP.SetColumn(3, new float[] { p.x, p.y, p.z, 1 });
-
         var ABCD = MathNetNumerics.Matrix<float>.Build.Dense(4, 4);
         ABCD.SetColumn(0, new float[] { a.x, a.y, a.z, 1 });
         ABCD.SetColumn(1, new float[] { b.x, b.y, b.z, 1 });
@@ -409,7 +408,6 @@ public class Tetrahedron : MonoBehaviour
         var detPBCD = PBCD.Determinant();
         var detAPCD = APCD.Determinant();
         var detABPD = ABPD.Determinant();
-        //var detABCP = ABCP.Determinant();
         var detABCD = ABCD.Determinant();
 
         var u = detPBCD / detABCD;

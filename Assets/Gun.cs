@@ -1,33 +1,33 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class Gun : MonoBehaviour
 {
+    [Header("Projectile Parameters")]
     public float shootingForce = 1000f; // the force applied to the sphere when it's shot
+    public float projectileMass = 25f;
+    public float projectileSize = 0.4f;
 
-    private void Update()
+    void Update()
     {
         if (Input.GetMouseButtonDown(0)) ShootSphere();
     }
 
-    private void ShootSphere()
+    /// <summary>
+    /// Creates a spherical projectile shot in the mouse direction
+    /// </summary>
+    void ShootSphere()
     {
-        // create a new sphere game object with a collider
-        GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         sphere.transform.position = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        sphere.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
+        sphere.transform.localScale = new Vector3(1, 1, 1) * projectileSize;
 
-        SphereCollider sphereCollider = sphere.AddComponent<SphereCollider>();
-
-        // add a rigidbody component to the sphere game object
-        Rigidbody sphereRigidbody = sphere.AddComponent<Rigidbody>();
-        sphereRigidbody.mass = 25f;
-
-        // apply the shooting force to the sphere in the forward direction of the shooter
+        sphere.AddComponent<SphereCollider>();
+        var sphereRigidbody = sphere.AddComponent<Rigidbody>();
+        sphereRigidbody.mass = projectileMass;
         sphereRigidbody.AddForce(Camera.main.ScreenPointToRay(Input.mousePosition).direction.normalized * shootingForce, ForceMode.Impulse);
 
         var bullet = sphere.AddComponent<Bullet>();
         bullet.impactForce = shootingForce;
+        bullet.mass = projectileMass;
     }
 }

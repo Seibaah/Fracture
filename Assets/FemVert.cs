@@ -1,6 +1,5 @@
 //#define DEBUG_MODE_ON
 
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using MathNetNumerics = MathNet.Numerics.LinearAlgebra;
@@ -71,7 +70,7 @@ public class FemVert : MonoBehaviour
 #endif
                 //create a fracture plane whose normal is the eigenvector of the max eigenvalue of the separation tensor
                 var maxEigenvec = st_eigenvec.Column(st_eigenval.Count - 1);
-                var fracturePlane = new Plane(VectorUtils.ConvertNumericsVec3ToUnityVec3(maxEigenvec), pos);
+                var fracturePlane = new Plane(VectorUtils.ConvertMathNetNumericsVec3ToUnityVec3(maxEigenvec), pos);
 #if DEBUG_MODE_ON
                 Debug.Log("fracture origin vert " + this.gameObject.transform.name);
                 Debug.DrawRay(pos, VectorUtils.ConvertNumericsVec3ToUnityVec3(maxEigenvec), Color.blue);

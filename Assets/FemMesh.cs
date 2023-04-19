@@ -46,7 +46,7 @@ public class FemMesh : MonoBehaviour
     void Update()
     {
         //draw tet colliders if flag is true
-        if (drawTets) tets.Where(tet => drawTets).ToList().ForEach(tet => tet.DrawMesh(color));
+        if (drawTets) tets.Where(tet => drawTets).ToList().ForEach(tet => tet.DrawMeshCollider(color));
 
         curFractureEventsCount = 0;
     }
@@ -124,7 +124,7 @@ public class FemMesh : MonoBehaviour
             List<GameObject> bricksInTet = new List<GameObject>();
             foreach (GameObject brick in instantiatedBricks)
             {
-                if (tet.IsPointInside(transform.TransformPoint(brick.transform.position)))
+                if (tet.ContainsPoint(transform.TransformPoint(brick.transform.position)))
                 {
                     bricksInTet.Add(brick);
                 }
