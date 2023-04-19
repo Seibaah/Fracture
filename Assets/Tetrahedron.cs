@@ -21,6 +21,7 @@ public class Tetrahedron : MonoBehaviour
     public Mesh tetMesh;
     public MeshCollider tetCollider;
     public List<FemVert> meshVerts = new List<FemVert>();
+    
     float vol;
     int[] vertexOpposedFaces = new int[4]; 
     Vector3[] faceNormals = new Vector3[4];
@@ -357,14 +358,46 @@ public class Tetrahedron : MonoBehaviour
     /// Distribute an impact force to the tetrahedron vertices using barycentrix weights
     /// </summary>
     /// <param name="f">Force the colliding objects applies to the tetrahedron</param>
-    public void ApplyCollisionForceToNodes(Vector3 f)
+    public void ApplyCollisionForceToNodes(Vector3 p, Vector3 f)
     {
-        foreach (FemVert v in meshVerts)
+        var w = ComputeBarycentricWeights(p);
+
+        for (int i=0; i<meshVerts.Count(); i++)
         {
-            v.Fi += VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(f);
+            var v = meshVerts[i];
+            v.Fi += VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(w.At(i) * f);
         }
 
         StartCoroutine(parentFemMesh.EnableFractureComputation());
+    }
+
+    /// <summary>
+    /// Computes the barycentric weights of a point inside the tetrahedron
+    /// </summary>
+    /// <param name="p">Point in or near the tetrahedra</param>
+    /// <returns>The barycentric weights for point p</returns>
+    public MathNetNumerics.Vector<float> ComputeBarycentricWeights(Vector3 p)
+    {
+        var P = VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(p);
+        var A = VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[0].pos);
+        var Ax = A.At(0); var Ay = A.At(1); var Az = A.At(2);
+        var B = VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[1].pos);
+        var Bx = B.At(0); var By = B.At(1); var Bz = B.At(2);
+        var C = VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[2].pos);
+        var Cx = C.At(0); var Cy = C.At(1); var Cz = C.At(2);
+        var D = VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(meshVerts[3].pos);
+        var Dx = D.At(0); var Dy = D.At(1); var Dz = A.At(2);
+
+        var M = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
+        M.SetColumn(0, new float[] { Ax - Dx, Ay - Dy, Az - Dz });
+        M.SetColumn(1, new float[] { Bx - Dx, By - Dy, Bz - Dz });
+        M.SetColumn(2, new float[] { Cx - Dx, Cy - Dy, Cz - Dz });
+
+        var W = M.Inverse() * P;
+        var w = MathNetNumerics.Vector<float>.Build.Dense(4, 1);
+        w.SetValues(new float[] { W.At(0), W.At(1), W.At(2), 1 - W.At(0) + W.At(1) + W.At(2) });
+
+        return w;
     }
 
     /// <summary>

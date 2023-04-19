@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using static UnityEditor.PlayerSettings;
 
 public class FemMesh : MonoBehaviour
 {
@@ -35,8 +36,15 @@ public class FemMesh : MonoBehaviour
 
     void Start()
     {
-        if (initializationMode == InitializationMode.RegularStart) RegularInitialization();
-        else StartCoroutine(EnableFractureComputation());
+        if (initializationMode == InitializationMode.RegularStart)
+        {
+            RegularInitialization();
+        }
+        else
+        {
+            StartCoroutine(EnableFractureComputation());
+            ValidateMeshBoundaries();
+        }
 
         //add a rigidbody and compute its mass
         var rb = gameObject.AddComponent<Rigidbody>();
@@ -139,6 +147,55 @@ public class FemMesh : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Validates that no 2 tetrahedra in the mesh are connected by only an edge (hinge)
+    /// or point (joint). If this scenario is detected the mesh is fractured in 2 sets 
+    /// to solve the boundary issue
+    /// </summary>
+    void ValidateMeshBoundaries()
+    {
+        foreach(Tetrahedron tet in tets)
+        {
+            foreach (Tetrahedron tet2 in tets)
+            {
+                if (tet == tet2) continue;
+
+                var sharedVerts = tet.meshVerts.Intersect(tet2.meshVerts);
+
+                if (sharedVerts.Count() == 1 || sharedVerts.Count() == 2)
+                {
+                    var sharedVertsList = sharedVerts.ToArray();
+                    Vector3 originPoint;
+                    if (sharedVerts.Count() == 2) {
+                        originPoint = Vector3.Lerp(sharedVertsList[0].pos, sharedVertsList[1].pos, 0.5f);
+                    }
+                    else
+                    {
+                        originPoint = sharedVertsList[0].pos;
+                    }
+
+                    var fracturePlane = new Plane(Vector3.right, originPoint);
+
+                    //compute tetrahedra left and right of the plane
+                    List<Tetrahedron> leftSide = new List<Tetrahedron>();
+                    List<Tetrahedron> rightSide = new List<Tetrahedron>();
+                    foreach (Tetrahedron t in tets)
+                    {
+                        if (fracturePlane.GetSide(t.centroid) == true) rightSide.Add(t);
+                        else leftSide.Add(t);
+                    }
+
+                    //plane must divide mesh in 2 non-empty sets to cause fracture
+                    if (leftSide.Count > 0 && rightSide.Count > 0)
+                    {
+                        FractureMesh(leftSide, rightSide);
+                    }
+
+                    return;
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// Separates a finite element method mesh into two parts defined by leftSide and rightSide.

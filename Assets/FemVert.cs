@@ -81,8 +81,6 @@ public class FemVert : MonoBehaviour
                 List<Tetrahedron> rightSide = new List<Tetrahedron>();
                 foreach (Tetrahedron tet in allTets)
                 {
-                    if (v.Equals(this)) continue;
-
                     if (fracturePlane.GetSide(tet.centroid) == true) rightSide.Add(tet);
                     else leftSide.Add(tet);
                 }

@@ -32,7 +32,7 @@ public class Bullet : MonoBehaviour
                 Debug.Log(contact.otherCollider.gameObject.transform.name + " hit\n" +
                     "Separation Distance: " + contact.separation);
 #endif
-                tet.ApplyCollisionForceToNodes(contact.normal * impactForce);
+                tet.ApplyCollisionForceToNodes(contact.point, contact.normal * impactForce);
                 tet.parentFemMesh.GetComponent<Rigidbody>().AddForce(contact.normal * impactForce);
             }
         }
