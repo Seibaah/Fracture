@@ -189,6 +189,24 @@ public class FemMesh : MonoBehaviour
                     if (leftSide.Count > 0 && rightSide.Count > 0)
                     {
                         FractureMesh(leftSide, rightSide);
+                        return;
+                    }
+
+                    fracturePlane = new Plane(Vector3.forward, originPoint);
+
+                    //compute tetrahedra left and right of the plane
+                    leftSide.Clear();
+                    rightSide.Clear();
+                    foreach (Tetrahedron t in tets)
+                    {
+                        if (fracturePlane.GetSide(t.centroid) == true) rightSide.Add(t);
+                        else leftSide.Add(t);
+                    }
+
+                    //plane must divide mesh in 2 non-empty sets to cause fracture
+                    if (leftSide.Count > 0 && rightSide.Count > 0)
+                    {
+                        FractureMesh(leftSide, rightSide);
                     }
 
                     return;

@@ -34,7 +34,7 @@ public class FemVert : MonoBehaviour
     [Header("Simulation Parameters")]
     public float k = 1.9f; //young modulus, in GPa
     public float v = 0.41f; //poisson ratio;
-    public float tau = 0.25f; //material toughness threshold
+    public float tau = 0.3f; //material toughness threshold
 
     void Start()
     {
