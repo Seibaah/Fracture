@@ -21,7 +21,9 @@ public class Tetrahedron : MonoBehaviour
     public Mesh tetMesh;
     public MeshCollider tetCollider;
     public List<FemVert> meshVerts = new List<FemVert>();
-    
+    public int maxCollisionsPerFrame = 2;
+    public int curCollisionsPerFrame = 0;
+
     float vol;
     int[] vertexOpposedFaces = new int[4]; 
     Vector3[] faceNormals = new Vector3[4];
@@ -76,6 +78,11 @@ public class Tetrahedron : MonoBehaviour
             ComputeCentroid();
             ComputeFracture();
         }
+    }
+
+    void LateUpdate()
+    {
+        curCollisionsPerFrame = 0;  
     }
 
     /// <summary>
@@ -367,7 +374,11 @@ public class Tetrahedron : MonoBehaviour
             v.Fi += VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(w.At(i) * f);
         }
 
-        StartCoroutine(parentFemMesh.EnableFractureComputation());
+        if (!FemMesh.fractureCoroutineCalled)
+        {
+            FemMesh.fractureCoroutineCalled = true;
+            StartCoroutine(parentFemMesh.EnableFractureComputation());
+        }
     }
 
     /// <summary>

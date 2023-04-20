@@ -25,12 +25,13 @@ public class Bullet : MonoBehaviour
         foreach (ContactPoint contact in contacts)
         {
             var tet = contact.otherCollider.gameObject.GetComponent<Tetrahedron>();
-            if (tet is not null)
+            if (tet != null && tet.curCollisionsPerFrame < tet.maxCollisionsPerFrame)
             {
 #if DEBUG_MODE_ON
                 Debug.Log(contact.otherCollider.gameObject.transform.name + " hit\n" +
                     "Separation Distance: " + contact.separation);
 #endif
+                tet.curCollisionsPerFrame++;
                 tet.ApplyCollisionForceToNodes(contact.point, contact.normal * impactForce);
             }
         }

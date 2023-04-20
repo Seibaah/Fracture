@@ -34,7 +34,7 @@ public class FemVert : MonoBehaviour
     [Header("Simulation Parameters")]
     public float k = 1.9f; //young modulus, in GPa
     public float v = 0.41f; //poisson ratio;
-    public float tau = 0.2f; //material toughness threshold
+    public float tau = 0.25f; //material toughness threshold
 
     void Start()
     {
@@ -44,7 +44,7 @@ public class FemVert : MonoBehaviour
     void Update()
     {
         pos = transform.position;
-        if (parentFemMesh.computeFracture)
+        if (parentFemMesh.computeFracture && FemMesh.curFractureEventsCount < FemMesh.maxFractureEventsCount)
         {
 #if DEBUG_MODE_ON
             Fi_Debug = VectorUtils.ConvertNumericsVec3ToUnityVec3(Fi);
@@ -62,8 +62,7 @@ public class FemVert : MonoBehaviour
 
             //fracture may occur if the max eigenvalue of the tensor exceeds the toughness threshold paramater
             //and if we haven't exceeded the allowed fracture events count for the current frame
-            if (maxEigenval.Real > tau
-                && FemMesh.curFractureEventsCount < FemMesh.maxFractureEventsCount)
+            if (maxEigenval.Real > tau)
             {
 #if DEBUG_MODE_ON
                 Debug.Log("Max eigenval: " + maxEigenval);
