@@ -15,6 +15,11 @@ public class FemMesh : MonoBehaviour
     public static int curFractureEventsCount = 0;
     public static bool fractureCoroutineCalled = false;
 
+    static GameObject pool;
+    static List<GameObject> femMeshParentsPool = new List<GameObject>();
+    static List<GameObject> tetsParentsPool = new List<GameObject>();
+    static List<GameObject> vertsParentsPool = new List<GameObject>();
+
     [Header("DebugDraw")]
     [SerializeField] bool drawTets = false;
     [SerializeField] Color color = Color.cyan;
@@ -165,6 +170,25 @@ public class FemMesh : MonoBehaviour
 
             bricksInTet.ForEach(b => instantiatedBricks.Remove(b));
         }
+
+        pool = new GameObject("GameObject Pool");
+        //creating an object pool of parent objects for future mesh fracture events
+        for (int i = 1; i <= tets.Count * 2; i++)
+        {
+            var go = new GameObject("Tets Mesh (" + i + ")");
+            var rb = go.AddComponent<Rigidbody>();
+            rb.isKinematic = true; //disable the rb while the object is unused
+            go.transform.parent = pool.transform;
+            femMeshParentsPool.Add(go);
+
+            go = new GameObject("tets");
+            go.transform.parent = pool.transform;
+            tetsParentsPool.Add(go);
+
+            go = new GameObject("verts");
+            go.transform.parent = pool.transform;
+            vertsParentsPool.Add(go);
+        }
     }
 
     /// <summary>
@@ -276,11 +300,13 @@ public class FemMesh : MonoBehaviour
     /// <param name="leftSide">Contains all tetrahedrons on the left side of the fracture plane</param>
     /// <param name="rightSide">Contains all tetrahedrons on the right side of the fracture plane</param>
     public void FractureMesh(List<Tetrahedron> leftSide, List<Tetrahedron> rightSide)
-    {        
+    {
         //init
-        var leftParent = new GameObject("Tets Mesh (" + id++ + ")");
+        var leftParent = femMeshParentsPool[0];
+        femMeshParentsPool.RemoveAt(0);
         leftParent.transform.parent = gameObject.transform.parent.transform;
-        var leftTetsParent = new GameObject("tets");
+        var leftTetsParent = tetsParentsPool[0];
+        tetsParentsPool.RemoveAt(0);
         leftTetsParent.transform.parent = leftParent.transform;
         var left_FEM = leftParent.AddComponent<FemMesh>();
         left_FEM.initializationMode = InitializationMode.FractureStart;
@@ -293,9 +319,11 @@ public class FemMesh : MonoBehaviour
         }
 
         //same as we just did, but for the other FemMesh
-        var rightParent = new GameObject("Tets Mesh (" + id++ + ")");
+        var rightParent = femMeshParentsPool[0];
+        femMeshParentsPool.RemoveAt(0);
         rightParent.transform.parent = gameObject.transform.parent.transform;
-        var rightTetsParent = new GameObject("tets");
+        var rightTetsParent = tetsParentsPool[0];
+        tetsParentsPool.RemoveAt(0);
         rightTetsParent.transform.parent = rightParent.transform;
         var right_FEM = rightParent.AddComponent<FemMesh>();
         right_FEM.initializationMode = InitializationMode.FractureStart;
@@ -305,7 +333,6 @@ public class FemMesh : MonoBehaviour
             tet.gameObject.transform.parent = rightTetsParent.transform;
             tet.parentFemMesh = right_FEM;
         }
-
 
         //compute the vertices used in each of the new FemMeshes
         List<FemVert> leftVerts = new List<FemVert>();
@@ -336,16 +363,41 @@ public class FemMesh : MonoBehaviour
 
         //inherit current mesh velocity
         var inheritedVelocity = gameObject.GetComponent<Rigidbody>().velocity;
-        var left_FEM_rb = left_FEM.AddComponent<Rigidbody>();
+        var left_FEM_rb = left_FEM.GetComponent<Rigidbody>();
+        left_FEM_rb.isKinematic = false;
         left_FEM_rb.velocity = inheritedVelocity;
         left_FEM_rb.mass = left_FEM.tets.Count * left_FEM.femElementMass;
 
-        var right_FEM_rb = right_FEM.AddComponent<Rigidbody>();
+        var right_FEM_rb = right_FEM.GetComponent<Rigidbody>();
+        right_FEM_rb.isKinematic = false;
         right_FEM_rb.velocity = inheritedVelocity;
         right_FEM_rb.mass = right_FEM.tets.Count * right_FEM.femElementMass;
 
         //destroy the old FemMesh
-        Destroy(gameObject);
+        if (femMeshParentsPool.Count < 40)
+        {
+            femMeshParentsPool.Add(gameObject);
+            gameObject.transform.parent = pool.transform;
+            foreach (Transform childTransform in gameObject.transform)
+            {
+                var go = childTransform.gameObject;
+                if (go.name.Equals("verts"))
+                {
+                    vertsParentsPool.Add(go);
+                    go.transform.parent = pool.transform;
+                }
+                else if (go.name.Equals("tets"))
+                {
+                    tetsParentsPool.Add(go);
+                    go.transform.parent = pool.transform;
+                }
+            }
+            Destroy(this);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
     /// <summary>
@@ -356,7 +408,8 @@ public class FemMesh : MonoBehaviour
         verts.Clear();
         tets.ForEach(t => verts.AddRange(t.meshVerts));
 
-        GameObject vertsParent = new GameObject("verts");
+        GameObject vertsParent = vertsParentsPool[0];
+        vertsParentsPool.RemoveAt(0);
         vertsParent.transform.parent = gameObject.transform;
 
         verts.ForEach(v => v.gameObject.transform.parent = vertsParent.transform);
