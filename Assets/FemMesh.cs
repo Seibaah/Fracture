@@ -47,6 +47,7 @@ public class FemMesh : MonoBehaviour
     //parsed data
     List<Vector3> rawVerts;
     List<int[]> rawTets;
+    Vector3 offset;
 
     //flag for mesh continuity computation
     bool searchCancelled = false;
@@ -83,6 +84,7 @@ public class FemMesh : MonoBehaviour
     /// </summary>
     void RegularInitialization()
     {
+        offset = gameObject.transform.parent.position;
         TetrahedralmeshParser.ParseTetMeshFiles(Application.dataPath + vertsFilePath,
             Application.dataPath + tetsFilePath,
             out rawVerts, out rawTets);
@@ -93,7 +95,7 @@ public class FemMesh : MonoBehaviour
         vertsParent.transform.name = "verts";
         for (int i = 0; i<rawVerts.Count(); i++)
         {
-            var vert = rawVerts[i];
+            var vert = rawVerts[i] + offset;
             var vertGo = new GameObject("v" + i);
             vertGo.transform.parent = vertsParent.transform;
             var fem_vert = vertGo.AddComponent<FemVert>();
@@ -136,6 +138,7 @@ public class FemMesh : MonoBehaviour
             fem_v2.tets.Add(tet);
             fem_v3.tets.Add(tet);
 
+            //go.transform.position += offset;
             go.transform.parent = tetsParent.transform;
         }
 
@@ -145,7 +148,7 @@ public class FemMesh : MonoBehaviour
         var spawner = ScriptableObject.CreateInstance<BrickSpawner>();
         if (meshSplinters == MeshSplinters.SmallWall)
         {
-            instantiatedBricks = spawner.SpawnSmallWallSplinters(splintersParent, brickPrefabs);
+            instantiatedBricks = spawner.SpawnSmallWallSplinters(splintersParent, brickPrefabs, offset);
         }
         else if (meshSplinters == MeshSplinters.MediumWall)
         {
@@ -170,6 +173,7 @@ public class FemMesh : MonoBehaviour
             foreach (GameObject brick in bricksInTet)
             {
                 brick.transform.parent = tet.gameObject.transform;
+                brick.transform.position += offset;
             }
 
             bricksInTet.ForEach(b => instantiatedBricks.Remove(b));

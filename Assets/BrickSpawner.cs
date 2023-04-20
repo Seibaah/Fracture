@@ -9,7 +9,7 @@ public class BrickSpawner: ScriptableObject
     /// <param name="parent">Parent object of the bricks</param>
     /// <param name="brickPrefabs">List of prefabs bricks to use</param>
     /// <returns></returns>
-    public List<GameObject> SpawnSmallWallSplinters(GameObject parent, List<GameObject> brickPrefabs)
+    public List<GameObject> SpawnSmallWallSplinters(GameObject parent, List<GameObject> brickPrefabs, Vector3 offset)
     {
         var instantiatedBricks = new List<GameObject>();
 
