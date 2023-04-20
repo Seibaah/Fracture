@@ -151,6 +151,10 @@ public class FemMesh : MonoBehaviour
         {
             instantiatedBricks = spawner.SpawnMediumWallSplinters(splintersParent, brickPrefabs);
         }
+        else if (meshSplinters == MeshSplinters.LargeWall)
+        {
+            instantiatedBricks = spawner.SpawnLargeWallSplinters(splintersParent, brickPrefabs);
+        }
 
         foreach (Tetrahedron tet in tets)
         {
@@ -171,7 +175,12 @@ public class FemMesh : MonoBehaviour
             bricksInTet.ForEach(b => instantiatedBricks.Remove(b));
         }
 
-        pool = new GameObject("GameObject Pool");
+        foreach (GameObject brick in instantiatedBricks)
+        {
+            Destroy(brick);
+        }
+
+            pool = new GameObject("GameObject Pool");
         //creating an object pool of parent objects for future mesh fracture events
         for (int i = 1; i <= tets.Count; i++)
         {
@@ -433,7 +442,8 @@ public class FemMesh : MonoBehaviour
     public enum MeshSplinters
     {
         SmallWall,
-        MediumWall
+        MediumWall,
+        LargeWall
     }
 }
 

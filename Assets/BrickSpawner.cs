@@ -48,4 +48,24 @@ public class BrickSpawner: ScriptableObject
 
         return instantiatedBricks;
     }
+
+    public List<GameObject> SpawnLargeWallSplinters(GameObject parent, List<GameObject> brickPrefabs)
+    {
+        var instantiatedBricks = new List<GameObject>();
+
+        for (int z = 0; z < 2; z++)
+        {
+            for (int y = 0; y < 36; y++)
+            {
+                for (int x = 0; x < 24; x++)
+                {
+                    GameObject go = GameObject.Instantiate(brickPrefabs[(x + y + z) % brickPrefabs.Count], new Vector3(-5.75f + x * 0.5f, -5.83f + y * 0.33f, -0.25f + z * 0.5f), Quaternion.Euler(270f, 0f, 0f));
+                    go.transform.parent = parent.transform;
+                    instantiatedBricks.Add(go);
+                }
+            }
+        }
+
+        return instantiatedBricks;
+    }
 }
