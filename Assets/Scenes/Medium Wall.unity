@@ -134,7 +134,7 @@ GameObject:
   - component: {fileID: 220811779}
   - component: {fileID: 220811780}
   m_Layer: 0
-  m_Name: Tets Mesh
+  m_Name: FEM Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -993,7 +993,7 @@ MonoBehaviour:
   shootingForce: 1600
   projectileMass: 40
   projectileSize: 1
-  recordSession: 1
+  recordSession: 0
 --- !u!4 &1312161671
 Transform:
   m_ObjectHideFlags: 0

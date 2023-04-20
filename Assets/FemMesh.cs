@@ -1,24 +1,24 @@
 //#define DEBUG_MODE_ON
 
+using MathNet.Numerics.LinearAlgebra.Complex.Solvers;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics.Contracts;
 using System.Linq;
-using Unity.VisualScripting;
 using UnityEngine;
-using static UnityEditor.PlayerSettings;
 
 public class FemMesh : MonoBehaviour
 {
-    static int id = 0;
     public static int maxFractureEventsCount = 5;
     public static int curFractureEventsCount = 0;
     public static bool fractureCoroutineCalled = false;
 
+    //object pooling for mesh splitting
     static GameObject pool;
     static List<GameObject> femMeshParentsPool = new List<GameObject>();
     static List<GameObject> tetsParentsPool = new List<GameObject>();
     static List<GameObject> vertsParentsPool = new List<GameObject>();
+    static List<FemVert> leftVerts = new List<FemVert>();
+    static List<FemVert> rightVerts = new List<FemVert>();
 
     [Header("DebugDraw")]
     [SerializeField] bool drawTets = false;
@@ -173,21 +173,24 @@ public class FemMesh : MonoBehaviour
 
         pool = new GameObject("GameObject Pool");
         //creating an object pool of parent objects for future mesh fracture events
-        for (int i = 1; i <= tets.Count * 2; i++)
+        for (int i = 1; i <= tets.Count; i++)
         {
-            var go = new GameObject("Tets Mesh (" + i + ")");
+            var go = new GameObject("FEM Mesh (" + i + ")");
             var rb = go.AddComponent<Rigidbody>();
             rb.isKinematic = true; //disable the rb while the object is unused
             go.transform.parent = pool.transform;
             femMeshParentsPool.Add(go);
 
-            go = new GameObject("tets");
-            go.transform.parent = pool.transform;
-            tetsParentsPool.Add(go);
+            var go2 = new GameObject("tets");
+            go2.transform.parent = go.transform;
+            tetsParentsPool.Add(go2);
 
-            go = new GameObject("verts");
-            go.transform.parent = pool.transform;
-            vertsParentsPool.Add(go);
+            go2 = new GameObject("verts");
+            go2.transform.parent = go.transform;
+            vertsParentsPool.Add(go2);
+
+            var fem = go.AddComponent<FemMesh>();
+            fem.enabled = false;
         }
     }
 
@@ -217,8 +220,8 @@ public class FemMesh : MonoBehaviour
                         //path between both tets couldn't be found within heuristic so we separate the mesh
                         searchCancelled = false;
 
-                        FractureMesh(tets.Except(new List<Tetrahedron>() { tet2 }).ToList(),
-                            new List<Tetrahedron>() { tet2 });
+                        var newSet = new List<Tetrahedron>() { tet2 };
+                        FractureMesh(tets.Except(newSet).ToList(), newSet);
                         return;
                     }
                     else
@@ -308,7 +311,8 @@ public class FemMesh : MonoBehaviour
         var leftTetsParent = tetsParentsPool[0];
         tetsParentsPool.RemoveAt(0);
         leftTetsParent.transform.parent = leftParent.transform;
-        var left_FEM = leftParent.AddComponent<FemMesh>();
+        var left_FEM = leftParent.GetComponent<FemMesh>();
+        left_FEM.enabled = true;
         left_FEM.initializationMode = InitializationMode.FractureStart;
         //assign tetrahedra to new FemMesh and update relations
         left_FEM.tets = leftSide;
@@ -318,26 +322,16 @@ public class FemMesh : MonoBehaviour
             tet.parentFemMesh = left_FEM;
         }
 
-        //same as we just did, but for the other FemMesh
-        var rightParent = femMeshParentsPool[0];
-        femMeshParentsPool.RemoveAt(0);
-        rightParent.transform.parent = gameObject.transform.parent.transform;
-        var rightTetsParent = tetsParentsPool[0];
-        tetsParentsPool.RemoveAt(0);
-        rightTetsParent.transform.parent = rightParent.transform;
-        var right_FEM = rightParent.AddComponent<FemMesh>();
+        //reuse the current object for the other fractured mesh
+        var rightParent = gameObject.transform.parent;
+        var right_FEM = this;
         right_FEM.initializationMode = InitializationMode.FractureStart;
         right_FEM.tets = rightSide;
-        foreach (Tetrahedron tet in rightSide)
-        {
-            tet.gameObject.transform.parent = rightTetsParent.transform;
-            tet.parentFemMesh = right_FEM;
-        }
 
         //compute the vertices used in each of the new FemMeshes
-        List<FemVert> leftVerts = new List<FemVert>();
+        leftVerts.Clear();
         left_FEM.tets.ForEach(t => leftVerts.AddRange(t.meshVerts));
-        List<FemVert> rightVerts = new List<FemVert>();
+        rightVerts.Clear();
         right_FEM.tets.ForEach(t => rightVerts.AddRange(t.meshVerts));
 
         //compute shared vertices
@@ -356,10 +350,10 @@ public class FemMesh : MonoBehaviour
                 }
             }
         }
-        right_FEM.UpdateVerts();
+        right_FEM.UpdateVerts(false);
 
         left_FEM.verts = leftVerts.Distinct().ToList();
-        left_FEM.UpdateVerts();
+        left_FEM.UpdateVerts(true);
 
         //inherit current mesh velocity
         var inheritedVelocity = gameObject.GetComponent<Rigidbody>().velocity;
@@ -369,47 +363,35 @@ public class FemMesh : MonoBehaviour
         left_FEM_rb.mass = left_FEM.tets.Count * left_FEM.femElementMass;
 
         var right_FEM_rb = right_FEM.GetComponent<Rigidbody>();
-        right_FEM_rb.isKinematic = false;
-        right_FEM_rb.velocity = inheritedVelocity;
         right_FEM_rb.mass = right_FEM.tets.Count * right_FEM.femElementMass;
-
-        //destroy the old FemMesh
-        if (femMeshParentsPool.Count < 40)
-        {
-            femMeshParentsPool.Add(gameObject);
-            gameObject.transform.parent = pool.transform;
-            foreach (Transform childTransform in gameObject.transform)
-            {
-                var go = childTransform.gameObject;
-                if (go.name.Equals("verts"))
-                {
-                    vertsParentsPool.Add(go);
-                    go.transform.parent = pool.transform;
-                }
-                else if (go.name.Equals("tets"))
-                {
-                    tetsParentsPool.Add(go);
-                    go.transform.parent = pool.transform;
-                }
-            }
-            Destroy(this);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
     }
 
     /// <summary>
     /// Updates FemMesh vertex data. Called automatically after FractureMesh.
     /// </summary>
-    void UpdateVerts()
+    void UpdateVerts(bool getNewParent)
     {
         verts.Clear();
         tets.ForEach(t => verts.AddRange(t.meshVerts));
 
-        GameObject vertsParent = vertsParentsPool[0];
-        vertsParentsPool.RemoveAt(0);
+        GameObject vertsParent = null; ;
+        if (getNewParent)
+        {
+            vertsParent = vertsParentsPool[0];
+            vertsParentsPool.RemoveAt(0);
+        }
+        else
+        {
+            foreach (Transform childTransform in gameObject.transform)
+            {
+                var childGo = childTransform.gameObject;
+                if (childGo.name.Equals("verts"))
+                {
+                    vertsParent = childGo;
+                }
+            }
+        }
+       
         vertsParent.transform.parent = gameObject.transform;
 
         verts.ForEach(v => v.gameObject.transform.parent = vertsParent.transform);
