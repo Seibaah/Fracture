@@ -11,15 +11,19 @@ using static UnityEditor.PlayerSettings;
 public class FemMesh : MonoBehaviour
 {
     static int id = 0;
+    public static int maxFractureEventsCount = 10;
+    public static int curFractureEventsCount = 0;
 
     [Header("DebugDraw")]
-    [SerializeField] bool drawTets = true;
+    [SerializeField] bool drawTets = false;
     [SerializeField] Color color = Color.red;
+
+    [Header("Input Mesh Data")]
+    [SerializeField] string tetsFilePath;
+    [SerializeField] string vertsFilePath;
 
     [Header("Simulation Parameters")]
     public InitializationMode initializationMode = InitializationMode.RegularStart; //default mode
-    public int maxFractureEventsCount = 10; //per frame
-    public int curFractureEventsCount = 0;
     public float femElementMass = 42f;
     public bool computeFracture = false;
     public float computeFractureTimeWindow = 0.25f;
@@ -46,7 +50,7 @@ public class FemMesh : MonoBehaviour
         }
         else
         {
-            StartCoroutine(EnableFractureComputation());
+            //StartCoroutine(EnableFractureComputation());
             ValidateMeshBoundaries();
         }
     }
@@ -55,7 +59,10 @@ public class FemMesh : MonoBehaviour
     {
         //draw tet colliders if flag is true
         if (drawTets) tets.Where(tet => drawTets).ToList().ForEach(tet => tet.DrawMeshCollider(color));
+    }
 
+    void LateUpdate()
+    {
         curFractureEventsCount = 0;
     }
 
@@ -65,8 +72,8 @@ public class FemMesh : MonoBehaviour
     /// </summary>
     void RegularInitialization()
     {
-        TetrahedralmeshParser.ParseTetMeshFiles(Application.dataPath + "/Tetrahedral Mesh Data/verts.csv",
-            Application.dataPath + "/Tetrahedral Mesh Data/tets.csv",
+        TetrahedralmeshParser.ParseTetMeshFiles(Application.dataPath + vertsFilePath,
+            Application.dataPath + tetsFilePath,
             out rawVerts, out rawTets);
 
         //create fem vert objects
@@ -328,6 +335,7 @@ public class FemMesh : MonoBehaviour
         }
     }
 
+    //TODO this might not be a good idea
     /// <summary>
     /// Coroutine that opens a time window to compute fractures in the mesh
     /// </summary>

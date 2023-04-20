@@ -353,7 +353,6 @@ public class Tetrahedron : MonoBehaviour
         Debug.DrawLine(wcf_verts[2], wcf_verts[3], color);        
     }
 
-    //TODO use barycentric weights
     /// <summary>
     /// Distribute an impact force to the tetrahedron vertices using barycentrix weights
     /// </summary>

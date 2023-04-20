@@ -63,7 +63,7 @@ public class FemVert : MonoBehaviour
             //fracture may occur if the max eigenvalue of the tensor exceeds the toughness threshold paramater
             //and if we haven't exceeded the allowed fracture events count for the current frame
             if (maxEigenval.Real > tau
-                && parentFemMesh.curFractureEventsCount < parentFemMesh.maxFractureEventsCount)
+                && FemMesh.curFractureEventsCount < FemMesh.maxFractureEventsCount)
             {
 #if DEBUG_MODE_ON
                 Debug.Log("Max eigenval: " + maxEigenval);
@@ -88,6 +88,7 @@ public class FemVert : MonoBehaviour
                 //plane must divide mesh in 2 non-empty sets to cause fracture
                 if (leftSide.Count > 0 && rightSide.Count > 0)
                 {
+                    FemMesh.curFractureEventsCount++;
                     parentFemMesh.FractureMesh(leftSide, rightSide);
                 }
             }
