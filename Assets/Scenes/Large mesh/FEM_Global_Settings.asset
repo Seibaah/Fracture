@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8c2f5af88469c594cba6688d5aac23cb, type: 3}
   m_Name: FEM_Global_Settings
   m_EditorClassIdentifier: 
-  maxFractureEventsCount: 50
+  maxFractureEventsCount: 5
   curFractureEventsCount: 0
   fractureCoroutineCalled: 0
