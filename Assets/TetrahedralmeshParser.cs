@@ -1,13 +1,23 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using UnityEngine;
 
 public class TetrahedralmeshParser
 {
-    public static void ParseTetMeshFiles(FEM fem, string verts_path, string tets_path)
+    /// <summary>
+    /// Parses 2 files. One contains vertex coordinates and the other 
+    /// contains tetrahedra vertex indices.
+    /// </summary>
+    /// <param name="verts_path">Path containing mesh vertex information</param>
+    /// <param name="tets_path">Path of file containing a tetrahedra verte index set</param>
+    /// <param name="rawVerts">List containing parsed vertex coordinates data</param>
+    /// <param name="rawTets">List containing parsed tetrahedra index set data</param>
+    public static void ParseTetMeshFiles(string verts_path, string tets_path, 
+        out List<Vector3> rawVerts, out List<int[]> rawTets)
     {
+        rawVerts = new List<Vector3>();
+        rawTets = new List<int[]>();
+
         // Parse verts file
         using (StreamReader reader = new StreamReader(verts_path))
         {
@@ -20,7 +30,7 @@ public class TetrahedralmeshParser
                 {
                     values[i] = float.Parse(fields[i]);
                 }
-                fem.verts_data.Add(new Vector3(values[0], values[1], values[2]));
+                rawVerts.Add(new Vector3(values[0], values[1], values[2]));
             }
         }
 
@@ -36,41 +46,8 @@ public class TetrahedralmeshParser
                 {
                     values[i] = int.Parse(fields[i]);
                 }
-                fem.tets_data.Add(values);
+                rawTets.Add(values);
             }
         }
-
-        //create tet objects
-        GameObject parent = fem.gameObject;
-        int id = 0;
-        foreach (int[] values in fem.tets_data)
-        {
-            //get the tets verts indices
-            int i0 = values[0];
-            int i1 = values[1];
-            int i2 = values[2];
-            int i3 = values[3];
-
-            Vector3 v0 = fem.verts_data[i0];
-            Vector3 v1 = fem.verts_data[i1];
-            Vector3 v2 = fem.verts_data[i2];
-            Vector3 v3 = fem.verts_data[i3];
-
-            GameObject go = new GameObject("tet_go (" + id++ + ")");
-            Tetrahedron tet = go.AddComponent<Tetrahedron>();
-            tet.verts = new List<Vector3> { v0, v1, v2, v3};
-            fem.tets.Add(tet);
-
-            go.transform.parent = parent.transform;
-        }
-
-        //cache min-max points of the mesh
-        fem.minX = fem.verts_data.Min(v => v.x);
-        fem.minY = fem.verts_data.Min(v => v.y);
-        fem.minZ = fem.verts_data.Min(v => v.z);
-        fem.maxX = fem.verts_data.Max(v => v.x);
-        fem.maxY = fem.verts_data.Max(v => v.y);
-        fem.maxZ = fem.verts_data.Max(v => v.z);
-
     }
 }
