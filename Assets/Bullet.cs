@@ -1,16 +1,13 @@
 //#define DEBUG_MODE_ON
 
+using System.Collections;
 using UnityEngine;
 
 public class Bullet : MonoBehaviour
 {
+    public Gun gun;
     public float impactForce;
     public float mass;
-
-    void Start()
-    {
-        Destroy(gameObject, 2); //bulets despawn 2 seconds after instantiation
-    }
 
     /// <summary>
     /// Called when the bullet collides with another object.

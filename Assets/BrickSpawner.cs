@@ -29,7 +29,7 @@ public class BrickSpawner: ScriptableObject
         return instantiatedBricks;
     }
 
-    public List<GameObject> SpawnMediumWallSplinters(GameObject parent, List<GameObject> brickPrefabs)
+    public List<GameObject> SpawnMediumWallSplinters(GameObject parent, List<GameObject> brickPrefabs, Vector3 offset)
     {
         var instantiatedBricks = new List<GameObject>();
 
@@ -49,7 +49,7 @@ public class BrickSpawner: ScriptableObject
         return instantiatedBricks;
     }
 
-    public List<GameObject> SpawnLargeWallSplinters(GameObject parent, List<GameObject> brickPrefabs)
+    public List<GameObject> SpawnLargeWallSplinters(GameObject parent, List<GameObject> brickPrefabs, Vector3 offset)
     {
         var instantiatedBricks = new List<GameObject>();
 

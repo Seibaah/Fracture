@@ -31,11 +31,6 @@ public class FemVert : MonoBehaviour
     [Header("Separation Tensor")]
     public MathNetNumerics.Matrix<float> separationTensor = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
 
-    [Header("Simulation Parameters")]
-    public float k = 1.9f; //young modulus, in GPa
-    public float v = 0.41f; //poisson ratio;
-    public float tau = 0.25f; //material toughness threshold
-
     void Start()
     {
         gameObject.transform.position = pos;
@@ -44,7 +39,8 @@ public class FemVert : MonoBehaviour
     void Update()
     {
         pos = transform.position;
-        if (parentFemMesh.computeFracture && FemMesh.curFractureEventsCount < FemMesh.maxFractureEventsCount)
+        if (parentFemMesh.computeFracture 
+            && parentFemMesh.globalSettings.curFractureEventsCount < parentFemMesh.globalSettings.maxFractureEventsCount)
         {
 #if DEBUG_MODE_ON
             Fi_Debug = VectorUtils.ConvertNumericsVec3ToUnityVec3(Fi);
@@ -62,7 +58,7 @@ public class FemVert : MonoBehaviour
 
             //fracture may occur if the max eigenvalue of the tensor exceeds the toughness threshold paramater
             //and if we haven't exceeded the allowed fracture events count for the current frame
-            if (maxEigenval.Real > tau)
+            if (maxEigenval.Real > parentFemMesh.instanceSettings.tau)
             {
 #if DEBUG_MODE_ON
                 Debug.Log("Max eigenval: " + maxEigenval);
@@ -87,7 +83,7 @@ public class FemVert : MonoBehaviour
                 //plane must divide mesh in 2 non-empty sets to cause fracture
                 if (leftSide.Count > 0 && rightSide.Count > 0)
                 {
-                    FemMesh.curFractureEventsCount++;
+                    parentFemMesh.globalSettings.curFractureEventsCount++;
                     parentFemMesh.FractureMesh(leftSide, rightSide);
                 }
             }

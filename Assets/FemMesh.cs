@@ -8,21 +8,12 @@ using UnityEngine;
 
 public class FemMesh : MonoBehaviour
 {
-    public static int maxFractureEventsCount = 5;
-    public static int curFractureEventsCount = 0;
-    public static bool fractureCoroutineCalled = false;
-
-    //object pooling for mesh splitting
-    static GameObject pool;
+    static GameObject pool = null;
     static List<GameObject> femMeshParentsPool = new List<GameObject>();
     static List<GameObject> tetsParentsPool = new List<GameObject>();
     static List<GameObject> vertsParentsPool = new List<GameObject>();
     static List<FemVert> leftVerts = new List<FemVert>();
     static List<FemVert> rightVerts = new List<FemVert>();
-
-    [Header("DebugDraw")]
-    [SerializeField] bool drawTets = false;
-    [SerializeField] Color color = Color.cyan;
 
     [Header("Input Mesh Data")]
     [SerializeField] string tetsFilePath;
@@ -31,18 +22,13 @@ public class FemMesh : MonoBehaviour
 
     [Header("Simulation Parameters")]
     public InitializationMode initializationMode = InitializationMode.RegularStart; //default mode
-    public float femElementMass = 42f;
     public bool computeFracture = false;
-    public float computeFractureTimeWindow = 0.01f;
-    public int meshContinuityMaxSearchDepth = 2;
+    public FemMeshInstanceSettings instanceSettings = null;
+    public FemMeshGlobalSettings globalSettings = null;
 
     [Header("FEM Elements")]
     public List<Tetrahedron> tets = new List<Tetrahedron>();
     public List<FemVert> verts = new List<FemVert>();
-
-    [Header("Splinters")]
-    public List<GameObject> brickPrefabs = new List<GameObject>();
-    List<GameObject> instantiatedBricks = new List<GameObject>();
 
     //parsed data
     List<Vector3> rawVerts;
@@ -52,30 +38,45 @@ public class FemMesh : MonoBehaviour
     //flag for mesh continuity computation
     bool searchCancelled = false;
 
+    FemMeshInstanceSettings previousSettings = null;
+
     void Start()
     {
         if (initializationMode == InitializationMode.RegularStart)
         {
             RegularInitialization();
             var rb = gameObject.AddComponent<Rigidbody>();
-            rb.mass = tets.Count * femElementMass;
+            rb.mass = tets.Count * instanceSettings.femElementMass;
         }
         else
         {
-            ValidateMeshBoundaries();
+            if (globalSettings.curFractureEventsCount < globalSettings.maxFractureEventsCount)
+            {
+                ValidateMeshBoundaries();
+            }
         }
     }
 
     void Update()
     {
-        //draw tet colliders if flag is true
-        if (drawTets) tets.Where(tet => drawTets).ToList().ForEach(tet => tet.DrawMeshCollider(color));
+        //draw tet colliders if option is enabled in settings
+        if (instanceSettings.drawTets) tets.Where(tet => instanceSettings.drawTets).ToList().ForEach(tet => tet.DrawMeshCollider(instanceSettings.color));
+    
+        //update mass if settings object has changed
+        if (previousSettings!= null)
+        {
+            if (previousSettings != instanceSettings)
+            {
+                gameObject.GetComponent<Rigidbody>().mass = tets.Count * instanceSettings.femElementMass;
+            }
+        }
+        previousSettings = instanceSettings;
     }
 
     void LateUpdate()
     {
-        curFractureEventsCount = 0;
-        FemMesh.fractureCoroutineCalled = false;
+        globalSettings.curFractureEventsCount = 0;
+        globalSettings.fractureCoroutineCalled = false;
     }
 
     /// <summary>
@@ -84,6 +85,16 @@ public class FemMesh : MonoBehaviour
     /// </summary>
     void RegularInitialization()
     {
+        if (instanceSettings == null)
+        {
+            instanceSettings = ScriptableObject.CreateInstance<FemMeshInstanceSettings>();
+        }
+
+        if (globalSettings == null)
+        {
+            globalSettings = ScriptableObject.CreateInstance<FemMeshGlobalSettings>();
+        }
+
         offset = gameObject.transform.parent.position;
         TetrahedralmeshParser.ParseTetMeshFiles(Application.dataPath + vertsFilePath,
             Application.dataPath + tetsFilePath,
@@ -143,52 +154,55 @@ public class FemMesh : MonoBehaviour
         }
 
         //create splinters and assign each to a tet
-        var splintersParent = new GameObject("splinters");
-        splintersParent.transform.parent = gameObject.transform;
-        var spawner = ScriptableObject.CreateInstance<BrickSpawner>();
-        if (meshSplinters == MeshSplinters.SmallWall)
+        if (instanceSettings.splinterPrefab.Count > 0) 
         {
-            instantiatedBricks = spawner.SpawnSmallWallSplinters(splintersParent, brickPrefabs, offset);
-        }
-        else if (meshSplinters == MeshSplinters.MediumWall)
-        {
-            instantiatedBricks = spawner.SpawnMediumWallSplinters(splintersParent, brickPrefabs);
-        }
-        else if (meshSplinters == MeshSplinters.LargeWall)
-        {
-            instantiatedBricks = spawner.SpawnLargeWallSplinters(splintersParent, brickPrefabs);
-        }
-
-        foreach (Tetrahedron tet in tets)
-        {
-            List<GameObject> bricksInTet = new List<GameObject>();
-            foreach (GameObject brick in instantiatedBricks)
+            var splintersParent = new GameObject("splinters");
+            splintersParent.transform.parent = gameObject.transform;
+            var spawner = ScriptableObject.CreateInstance<BrickSpawner>();
+            if (meshSplinters == MeshSplinters.SmallWall)
             {
-                if (tet.ContainsPoint(transform.TransformPoint(brick.transform.position)))
+                instanceSettings.instantiatedBricks = spawner.SpawnSmallWallSplinters(splintersParent, instanceSettings.splinterPrefab, offset);
+            }
+            else if (meshSplinters == MeshSplinters.MediumWall)
+            {
+                instanceSettings.instantiatedBricks = spawner.SpawnMediumWallSplinters(splintersParent, instanceSettings.splinterPrefab, offset);
+            }
+            else if (meshSplinters == MeshSplinters.LargeWall)
+            {
+                instanceSettings.instantiatedBricks = spawner.SpawnLargeWallSplinters(splintersParent, instanceSettings.splinterPrefab, offset);
+            }
+
+            foreach (Tetrahedron tet in tets)
+            {
+                List<GameObject> bricksInTet = new List<GameObject>();
+                foreach (GameObject brick in instanceSettings.instantiatedBricks)
                 {
-                    bricksInTet.Add(brick);
+                    if (tet.ContainsPoint(transform.TransformPoint(brick.transform.position)))
+                    {
+                        bricksInTet.Add(brick);
+                    }
                 }
+
+                foreach (GameObject brick in bricksInTet)
+                {
+                    brick.transform.parent = tet.gameObject.transform;
+                    brick.transform.position += offset;
+                }
+
+                bricksInTet.ForEach(b => instanceSettings.instantiatedBricks.Remove(b));
             }
 
-            foreach (GameObject brick in bricksInTet)
+            foreach (GameObject brick in instanceSettings.instantiatedBricks)
             {
-                brick.transform.parent = tet.gameObject.transform;
-                brick.transform.position += offset;
+                Destroy(brick);
             }
-
-            bricksInTet.ForEach(b => instantiatedBricks.Remove(b));
         }
 
-        foreach (GameObject brick in instantiatedBricks)
-        {
-            Destroy(brick);
-        }
-
-            pool = new GameObject("GameObject Pool");
+        if (pool == null) pool = new GameObject("GameObject Pool");
         //creating an object pool of parent objects for future mesh fracture events
         for (int i = 1; i <= tets.Count; i++)
         {
-            var go = new GameObject("FEM Mesh (" + i + ")");
+            var go = new GameObject("FEM Mesh");
             var rb = go.AddComponent<Rigidbody>();
             rb.isKinematic = true; //disable the rb while the object is unused
             go.transform.parent = pool.transform;
@@ -234,6 +248,7 @@ public class FemMesh : MonoBehaviour
                         searchCancelled = false;
 
                         var newSet = new List<Tetrahedron>() { tet2 };
+                        globalSettings.curFractureEventsCount++;
                         FractureMesh(tets.Except(newSet).ToList(), newSet);
                         return;
                     }
@@ -248,6 +263,7 @@ public class FemMesh : MonoBehaviour
                         else
                         {
                             //no valid path between tetrahedra, separate mesh
+                            globalSettings.curFractureEventsCount++;
                             FractureMesh(leftSideSet, tets.Except(leftSideSet).ToList());
                             return;
                         }
@@ -266,11 +282,12 @@ public class FemMesh : MonoBehaviour
     /// <param name="set">Set of tetrahedra that satisy the continuity condition</param>
     /// <param name="visitedTets">List of already visited tetrahedra</param>
     /// <param name="visitedVerts">List of already visited vertices</param>
+    /// <param name="currentDepth">Current search depth. Equivalent to how far away we are from the search starting point</param>
     /// <returns>The updated set of tetrahedra that satisy the continuity condition</returns>
     public List<Tetrahedron> ComputeMeshConnectedSet(Tetrahedron curTet, List<Tetrahedron> set, 
         List<Tetrahedron> visitedTets, List<FemVert> visitedVerts, int currentDepth)
     {
-        if (currentDepth >= meshContinuityMaxSearchDepth)
+        if (currentDepth >= instanceSettings.meshContinuityMaxSearchDepth)
         {
             searchCancelled = true;
             return set;
@@ -326,6 +343,8 @@ public class FemMesh : MonoBehaviour
         leftTetsParent.transform.parent = leftParent.transform;
         var left_FEM = leftParent.GetComponent<FemMesh>();
         left_FEM.enabled = true;
+        left_FEM.instanceSettings = instanceSettings;
+        left_FEM.globalSettings = globalSettings;
         left_FEM.initializationMode = InitializationMode.FractureStart;
         //assign tetrahedra to new FemMesh and update relations
         left_FEM.tets = leftSide;
@@ -373,15 +392,16 @@ public class FemMesh : MonoBehaviour
         var left_FEM_rb = left_FEM.GetComponent<Rigidbody>();
         left_FEM_rb.isKinematic = false;
         left_FEM_rb.velocity = inheritedVelocity;
-        left_FEM_rb.mass = left_FEM.tets.Count * left_FEM.femElementMass;
+        left_FEM_rb.mass = left_FEM.tets.Count * left_FEM.instanceSettings.femElementMass;
 
         var right_FEM_rb = right_FEM.GetComponent<Rigidbody>();
-        right_FEM_rb.mass = right_FEM.tets.Count * right_FEM.femElementMass;
+        right_FEM_rb.mass = right_FEM.tets.Count * right_FEM.instanceSettings.femElementMass;
     }
 
     /// <summary>
     /// Updates FemMesh vertex data. Called automatically after FractureMesh.
     /// </summary>
+    /// <param name="getNewParent">Does the vertex update need to fetch a new parent object for the verts</param>
     void UpdateVerts(bool getNewParent)
     {
         verts.Clear();
@@ -425,7 +445,6 @@ public class FemMesh : MonoBehaviour
         }
     }
 
-    //TODO this might not be a good idea
     /// <summary>
     /// Coroutine that opens a time window to compute fractures in the mesh
     /// </summary>
@@ -433,7 +452,7 @@ public class FemMesh : MonoBehaviour
     public IEnumerator EnableFractureComputation()
     {
         computeFracture = true;
-        yield return new WaitForSecondsRealtime(computeFractureTimeWindow);
+        yield return new WaitForSecondsRealtime(instanceSettings.computeFractureTimeWindow);
         computeFracture = false;
     }
 

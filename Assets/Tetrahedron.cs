@@ -28,10 +28,6 @@ public class Tetrahedron : MonoBehaviour
     int[] vertexOpposedFaces = new int[4]; 
     Vector3[] faceNormals = new Vector3[4];
 
-    [Header("Material Parameters")]
-    public float k = 1.9f; //young modulus, in GPa
-    public float v = 0.41f; //poisson ratio;
-
     /// <summary>
     /// Variables defined in Parker, G., & O'Brien, J. F. (2009). 
     /// Real-time deformation and fracture in a game environment. 
@@ -50,7 +46,6 @@ public class Tetrahedron : MonoBehaviour
     /// </summary>
     MathNetNumerics.Matrix<float> B2 = MathNetNumerics.Matrix<float>.Build.Dense(4, 4); //Beta matrix (16)
     MathNetNumerics.Matrix<float> X = MathNetNumerics.Matrix<float>.Build.Dense(3, 4); //X matrix (13)
-
 
     void Start()
     {
@@ -107,6 +102,54 @@ public class Tetrahedron : MonoBehaviour
         B = Du.Inverse();
         F = Dx * B;
 
+        //Compute Polar Decomposition of the Deformation Gradient F using its Single Value Decomposition.
+        //F. Parker, G., & O'Brien, J. F. (2009)
+        var F_svd = F.Svd();
+        var S = F_svd.S; //S -> Σ in most literature
+        var VT = F_svd.VT;
+        var V = VT.Transpose();
+        var W = F_svd.U;
+        //F = U*P = Q*A
+        var P = V * S * VT; //positive definite matrix = V * Σ * VT
+        var U = W * VT; //unitary matrix = W * VT
+        //remame vars for consistency with the paper
+        var Q = U;
+        var A = P;
+
+        //Factoring out rotational effect from deformation gradient. F. Parker, G., & O'Brien, J. F. (2009)
+        var Fpow = Q.Transpose() * F;
+        var EpsPow = 0.5f * (Fpow + Fpow.Transpose()) - I; //corotational cauchy strain
+
+        //Compute 1st and 2nd lamé parameters. F. Parker, G., & O'Brien, J. F. (2009)
+        var k = parentFemMesh.instanceSettings.k;
+        var v = parentFemMesh.instanceSettings.v;
+        var mu = k / (2 * (1 + v));
+        var lambda = (k * v) / ((1 + v) * (1 - 2 * v));
+
+        //Compute element stress. F. Parker, G., & O'Brien, J. F. (2009)
+        var s = lambda * EpsPow.Trace() * I + 2 * mu * EpsPow;
+        var s_evd = s.Evd();
+        var s_eigenvalues = s_evd.EigenValues;
+        var s_eigenvectors = s_evd.EigenVectors;
+
+        //Reset all forces on each vertex element
+        foreach (FemVert vert in meshVerts)
+        {
+            vert.Fi.Clear();
+            vert.FiPlus.Clear();
+            vert.FiMin.Clear();
+            vert.SetFiPlus.Clear();
+            vert.SetFiMin.Clear();
+        }
+        //Compute fi = Q * s * ni for each vertex element. F. Parker, G., & O'Brien, J. F. (2009)
+        for (int i = 0; i < meshVerts.Count(); i++)
+        {
+            FemVert vert = meshVerts[i];
+            var ni = faceNormals[i++];
+            var Fi = Q * s * VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(ni);
+            vert.Fi += Fi; //accumulate the force on the vert node
+        }
+
         //Finite Element Discretization. O'Brien, J. F., & Hodgins, J. K. (1999)
         var v0 = meshVerts[0].pos;
         B2.SetColumn(0, MathNetNumerics.Vector<float>.Build.DenseOfArray(new float[] { v0.x, v0.y, v0.z, 1 }));
@@ -127,64 +170,22 @@ public class Tetrahedron : MonoBehaviour
         var p3 = transform.TransformPoint(v3);
         X.SetColumn(3, VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(p3));
 
-        //Compute Polar Decomposition of the Deformation Gradient F using its Single Value Decomposition.
-        //F. Parker, G., & O'Brien, J. F. (2009)
-        var F_svd = F.Svd();
-        var S = F_svd.S; //S -> Σ in most literature
-        var VT = F_svd.VT;
-        var V = VT.Transpose();
-        var W = F_svd.U;
-        //F = U*P = Q*A
-        var P = V * S * VT; //positive definite matrix = V * Σ * VT
-        var U = W * VT; //unitary matrix = W * VT
-        //remame vars for consistency with the paper
-        var Q = U;
-        var A = P;
-
-        //Factoring out rotational effect from deformation gradient. F. Parker, G., & O'Brien, J. F. (2009)
-        var Fpow = Q.Transpose() * F;
-        var EpsPow = 0.5f * (Fpow + Fpow.Transpose()) - I; //corotational cauchy strain
-
-        //Compute 1st and 2nd lamé parameters. F. Parker, G., & O'Brien, J. F. (2009)
-        var mu = k / (2 * (1 + v));
-        var lambda = (k * v) / ((1 + v) * (1 - 2 * v));
-
-        //Compute element stress. F. Parker, G., & O'Brien, J. F. (2009)
-        var s = lambda * EpsPow.Trace() * I + 2 * mu * EpsPow;
-        var s_evd = s.Evd();
-        var s_eigenvalues = s_evd.EigenValues;
-        var s_eigenvectors = s_evd.EigenVectors;
-
-        //Reset all forces on each vertex element
-        foreach (FemVert v in meshVerts)
-        { 
-            v.Fi.Clear();
-            v.FiPlus.Clear();
-            v.FiMin.Clear();
-            v.SetFiPlus.Clear();
-            v.SetFiMin.Clear();
-        }
-        //Compute fi = Q * s * ni for each vertex element. F. Parker, G., & O'Brien, J. F. (2009)
-        for (int i = 0; i < meshVerts.Count(); i++)
-        {
-            FemVert v = meshVerts[i];
-            var ni = faceNormals[i++];
-            var Fi = Q * s * VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(ni);
-            v.Fi += Fi; //accumulate the force on the vert node
-        }
-
         //Compute Force Decomposition. O'Brien, J. F., & Hodgins, J. K. (1999)
         MathNetNumerics.Matrix<float> sPlus = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
+#if DEBUG_MODE_ON
         MathNetNumerics.Matrix<float> sMin = MathNetNumerics.Matrix<float>.Build.Dense(3, 3);
+#endif
         for (int i = 0; i < 3; i++)
         {
             sPlus += Mathf.Max(0.0f, ((float)s_eigenvalues.At(i).Magnitude))
                 * ComputeOperatorM(s_eigenvectors.Column(i));
+#if DEBUG_MODE_ON
             sMin += Mathf.Min(0.0f, ((float)s_eigenvalues.At(i).Magnitude))
                 * ComputeOperatorM(s_eigenvectors.Column(i));
+#endif
         }
 
-#if DEBUG_MODE_ON       
+#if DEBUG_MODE_ON
         var test = s - (sPlus + sMin);
         if (test.Equals(Matrix<double>.Build.Dense(3, 3, 0.0)))
         {
@@ -203,26 +204,26 @@ public class Tetrahedron : MonoBehaviour
         float halfVol = -vol / 2;
         for (int i = 0; i < meshVerts.Count(); i++)
         {
-            FemVert v = meshVerts[i];
+            FemVert vert = meshVerts[i];
             MathNetNumerics.Vector<float> forceSum = MathNetNumerics.Vector<float>.Build.Dense(3);
             for (int j = 0; j < 4; j++)
             {
                 float innerSum = 0;
-                for (int k = 0; k < 3; k++)
+                for (int h = 0; h < 3; h++)
                 {
                     for (int l = 0; l < 3; l++)
                     {
-                        innerSum = B2.At(j, l) * B2.At(i, k) * sPlus.At(k, l);
+                        innerSum = B2.At(j, l) * B2.At(i, h) * sPlus.At(h, l);
                     }
                 }
                 forceSum += X.Column(j) * innerSum;
             }
             var FiPlus = halfVol * forceSum;
-            v.FiPlus += FiPlus;
-            var FiMinus = v.Fi - v.FiPlus;
-            v.FiMin += FiMinus;
-            v.SetFiPlus.Add(v.FiPlus);
-            v.SetFiMin.Add(v.FiMin);
+            vert.FiPlus += FiPlus;
+            var FiMinus = vert.Fi - vert.FiPlus;
+            vert.FiMin += FiMinus;
+            vert.SetFiPlus.Add(vert.FiPlus);
+            vert.SetFiMin.Add(vert.FiMin);
         }
     }
 
@@ -363,6 +364,7 @@ public class Tetrahedron : MonoBehaviour
     /// <summary>
     /// Distribute an impact force to the tetrahedron vertices using barycentrix weights
     /// </summary>
+    /// <param name="p">Point for barycenric weights calculation</param>
     /// <param name="f">Force the colliding objects applies to the tetrahedron</param>
     public void ApplyCollisionForceToNodes(Vector3 p, Vector3 f)
     {
@@ -374,9 +376,9 @@ public class Tetrahedron : MonoBehaviour
             v.Fi += VectorUtils.ConvertUnityVec3ToMathNetNumericsVec3(w.At(i) * f);
         }
 
-        if (!FemMesh.fractureCoroutineCalled)
+        if (!parentFemMesh.globalSettings.fractureCoroutineCalled)
         {
-            FemMesh.fractureCoroutineCalled = true;
+            parentFemMesh.globalSettings.fractureCoroutineCalled = true;
             StartCoroutine(parentFemMesh.EnableFractureComputation());
         }
     }
