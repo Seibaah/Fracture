@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 641360c77b80efd4f88e7b2209924e1f, type: 3}
   m_Name: ABS_Plastic_Instance
   m_EditorClassIdentifier: 
-  k: 1.9
-  v: 0.41
-  tau: 0.25
+  youngModulus: 1.9
+  poissonRatio: 0.41
+  toughness: 0.25
   femElementMass: 15
   computeFractureTimeWindow: 0.01
   meshContinuityMaxSearchDepth: 2
