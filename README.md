@@ -19,7 +19,7 @@ Video: https://www.youtube.com/watch?v=HzDzOsPxKlg&t=1s
 To run the project please install Unity 2023.3.15f1 from the following link or the Unity Hub.
 https://unity.com/releases/editor/whats-new/2021.3.15
 
-Open the project using this version only to avoid compatibility issues.
+:warning: **ONLY USE UNITY 2023.3.15 TO OPEN THE PROJECT. USING A NEWER VERSION MIGHT WORK BUT IT IS NOT GUARANTEED. USING AN OLDER VERSION IS ALMOST GUARANTEED TO FAIL**
 
 ## How to open a test scene?
 
@@ -33,7 +33,7 @@ The tests are in the Scene folder. To open it simply double click the scene file
 
 Once the scene is opened, press the Play button on top. All the tests shoot a gun 3x automatically to demonstrate the fracture. 
 
-:warning: **BEWARE! THE LARGE MESH TEST IS VERY INTENSIVE AND TAKE LONGER THAN THE REST TO LOAD**
+:warning: **BEWARE! THE LARGE MESH TEST IS VERY INTENSIVE AND TAKES LONGER THAN THE REST TO LOAD**
 
 ## How to change the simulation parameters?
 
