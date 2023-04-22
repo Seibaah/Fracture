@@ -23,30 +23,30 @@ https://unity.com/releases/editor/whats-new/2021.3.15
 
 ## How to open a test scene?
 
-![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_open_tests.gif)
-
 The tests are in the Scene folder. To open it simply double click the scene file. 
 
-## How to run a scene?
+![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_open_tests.gif)
 
-![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_run_test.gif)
+## How to run a scene?
 
 Once the scene is opened, press the Play button on top. All the tests shoot a gun 3x automatically to demonstrate the fracture. 
 
 :warning: **BEWARE! THE LARGE MESH TEST IS VERY INTENSIVE AND TAKES LONGER THAN THE REST TO LOAD**
 
-## How to change the simulation parameters?
+![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_run_test.gif)
 
-![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_use_change_sim_params.gif)
+## How to change the simulation parameters?
 
 Each scene has a global and instance parameter objects. To change the material properties simply change the value in the editor andd run the scene.
 
-## How do I control where the projectiles are shot?
+![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_use_change_sim_params.gif)
 
-![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_use_sandbox_test.gif)
+## How do I control where the projectiles are shot?
 
 There are 2 ways you can control the gun in the project:
 
 1) You can load the Sandbox scene. This scene is already set up so you can run and play with it however you want. To shoot a projectile you use left click. 
 
 2) To use the gun in any other scene you must find the Gun game object in the hierarchy and set automode to false. Then you can use left click to shoot.
+
+![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_use_sandbox_test.gif)
