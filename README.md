@@ -13,6 +13,7 @@ We then present and test a working implementation in Unity. Finally, we
 evaluate its performance and hint at how it could be further improved
 
 Paper: https://github.com/Seibaah/Fracture/blob/main/Real-Time%20Fracture%20in%20Unity.pdf
+
 Video: https://www.youtube.com/watch?v=HzDzOsPxKlg&t=1s
 
 ## How to open the project?
