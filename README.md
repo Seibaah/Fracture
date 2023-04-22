@@ -18,7 +18,7 @@ Video: https://www.youtube.com/watch?v=HzDzOsPxKlg&t=1s
 
 ## How to open the project?
 
-To run the project please install Unity 2023.3.15f1 from the following link or the Unity Hub.
+To run the project please install Unity 2021.3.15f1 from the following link or the Unity Hub.
 https://unity.com/releases/editor/whats-new/2021.3.15
 
 :warning: **ONLY USE UNITY 2021.3.15 TO OPEN THE PROJECT. USING A NEWER VERSION MIGHT WORK BUT IT IS NOT GUARANTEED. USING AN OLDER VERSION IS ALMOST GUARANTEED TO FAIL**
