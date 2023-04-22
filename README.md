@@ -12,6 +12,8 @@ reading can understand the principles and create their own version afterward.
 We then present and test a working implementation in Unity. Finally, we
 evaluate its performance and hint at how it could be further improved
 
+Video: https://www.youtube.com/watch?v=HzDzOsPxKlg&t=1s
+
 ## How to open the project?
 
 To run the project please install Unity 2023.3.15f1 from the following link or the Unity Hub.
@@ -29,7 +31,9 @@ The tests are in the Scene folder. To open it simply double click the scene file
 
 ![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_run_test.gif)
 
-Once the scene is opened, press the Play button on top. All the tests shoot a gun 3x automatically to demonstrate the fracture.
+Once the scene is opened, press the Play button on top. All the tests shoot a gun 3x automatically to demonstrate the fracture. 
+
+:warning: **BEWARE! THE LARGE MESH TEST IS VERY INTENSIVE AND TAKE LONGER THAN THE REST TO LOAD**
 
 ## How to change the simulation parameters?
 
@@ -41,8 +45,8 @@ Each scene has a global and instance parameter objects. To change the material p
 
 ![](https://github.com/Seibaah/Fracture/blob/main/Gifs/how_to_use_sandbox_test.gif)
 
-There are 2 ways you can control the gun in the project.
+There are 2 ways you can control the gun in the project:
 
-1) In any scene, you can find the Gun game object in the hierarchy and set automode to false.
+1) You can load the Sandbox scene. This scene is already set up so you can run and play with it however you want. To shoot a projectile you use left click. 
 
-2) You can load the Sandbox scene. This scene is already set up so you can run and play with it however you want. 
+2) To use the gun in any other scene you must find the Gun game object in the hierarchy and set automode to false. Then you can use left click to shoot.
