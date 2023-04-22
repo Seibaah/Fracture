@@ -58,7 +58,7 @@ public class FemVert : MonoBehaviour
 
             //fracture may occur if the max eigenvalue of the tensor exceeds the toughness threshold paramater
             //and if we haven't exceeded the allowed fracture events count for the current frame
-            if (maxEigenval.Real > parentFemMesh.instanceSettings.tau)
+            if (maxEigenval.Real > parentFemMesh.instanceSettings.toughness)
             {
 #if DEBUG_MODE_ON
                 Debug.Log("Max eigenval: " + maxEigenval);

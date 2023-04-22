@@ -10,12 +10,12 @@ using static FemMesh;
 public class FemMeshInstanceSettings : ScriptableObject
 {
     [Header("Material Parameters")]
-    [Tooltip("Young's Modulus (GPa)")] 
-    public float k = 1.9f;
-    [Tooltip("Poisson Ratio")] 
-    public float v = 0.41f;
+    [Tooltip("Young's Modulus: measure of stiffness of the material (GPa)")] 
+    public float youngModulus = 1.9f;
+    [Tooltip("Poisson Ratio: measure of how much the material stretches or compresses")] 
+    public float poissonRatio = 0.41f;
     [Tooltip("Material Toughness Threshold")] 
-    public float tau = 0.25f; //the higher the less brittle the material is
+    public float toughness = 0.25f; //the higher the less brittle the material is
 
     [Header("Simulation Parameters")]
     [Tooltip("Tetrahedron Mass")] 
