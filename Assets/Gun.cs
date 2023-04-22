@@ -16,6 +16,10 @@ public class Gun : MonoBehaviour
     public float projectileMass = 25f;
     public float projectileSize = 0.4f;
 
+    [Header("Recorder")]
+    public bool recordSession = false;
+    RecorderWindow recWindow;
+
     Vector3 unitVector = new Vector3(1, 1, 1);
 
     //Object Pooling for projectiles
@@ -43,6 +47,12 @@ public class Gun : MonoBehaviour
             pool.Add(sphere);
 
             Destroy(sphere, 8f);
+        }
+
+        if (recordSession)
+        {
+            recWindow = (RecorderWindow)EditorWindow.GetWindow(typeof(RecorderWindow));
+            recWindow.StartRecording();
         }
 
         if (autoModeOn)
@@ -116,6 +126,12 @@ public class Gun : MonoBehaviour
             AutoShootSphere();
             yield return new WaitForSecondsRealtime(0.25f);
             AutoShootSphere();
+        }
+
+        if (recordSession)
+        {
+            yield return new WaitForSeconds(10f);
+            recWindow.StopRecording();
         }
     }
 }

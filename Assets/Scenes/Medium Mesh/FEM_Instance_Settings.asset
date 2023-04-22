@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   k: 1.9
   v: 0.41
-  tau: 0.4
+  tau: 0.25
   femElementMass: 25
   computeFractureTimeWindow: 0.01
   meshContinuityMaxSearchDepth: 2

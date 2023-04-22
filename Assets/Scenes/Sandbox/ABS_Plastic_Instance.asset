@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 641360c77b80efd4f88e7b2209924e1f, type: 3}
+  m_Name: ABS_Plastic_Instance
+  m_EditorClassIdentifier: 
+  k: 1.9
+  v: 0.41
+  tau: 0.25
+  femElementMass: 15
+  computeFractureTimeWindow: 0.01
+  meshContinuityMaxSearchDepth: 2
+  splinterPrefab:
+  - {fileID: 5990352821216582152, guid: ce006bbfd31cea640bcbe0a03877f991, type: 3}
+  - {fileID: 7363726699482470085, guid: 2f7a07142b697d7449326f32b22bd582, type: 3}
+  - {fileID: 7778132666712347942, guid: 0f5028a4e07e09a4fab3f8577280d422, type: 3}
+  - {fileID: 584797179780353382, guid: c1a2f1b1a4adaa545ad7971ef509b6e2, type: 3}
+  instantiatedBricks: []
+  drawTets: 0
+  color: {r: 0, g: 1, b: 1, a: 1}

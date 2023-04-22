@@ -121,8 +121,8 @@ public class Tetrahedron : MonoBehaviour
         var EpsPow = 0.5f * (Fpow + Fpow.Transpose()) - I; //corotational cauchy strain
 
         //Compute 1st and 2nd lamé parameters. F. Parker, G., & O'Brien, J. F. (2009)
-        var k = parentFemMesh.instanceSettings.k;
-        var v = parentFemMesh.instanceSettings.v;
+        var k = parentFemMesh.instanceSettings.youngModulus;
+        var v = parentFemMesh.instanceSettings.poissonRatio;
         var mu = k / (2 * (1 + v));
         var lambda = (k * v) / ((1 + v) * (1 - 2 * v));
 

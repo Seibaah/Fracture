@@ -24,5 +24,5 @@ MonoBehaviour:
   - {fileID: 7778132666712347942, guid: 0f5028a4e07e09a4fab3f8577280d422, type: 3}
   - {fileID: 584797179780353382, guid: c1a2f1b1a4adaa545ad7971ef509b6e2, type: 3}
   instantiatedBricks: []
-  drawTets: 0
-  color: {r: 0, g: 1, b: 1, a: 1}
+  drawTets: 1
+  color: {r: 1, g: 0, b: 0, a: 1}

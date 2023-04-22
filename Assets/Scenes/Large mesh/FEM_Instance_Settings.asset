@@ -14,10 +14,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   k: 1.9
   v: 0.41
-  tau: 0.25
-  femElementMass: 4
+  tau: 0.2
+  femElementMass: 3
   computeFractureTimeWindow: 0.01
-  meshContinuityMaxSearchDepth: 2
+  meshContinuityMaxSearchDepth: 1
   splinterPrefab:
   - {fileID: 5990352821216582152, guid: ce006bbfd31cea640bcbe0a03877f991, type: 3}
   - {fileID: 7363726699482470085, guid: 2f7a07142b697d7449326f32b22bd582, type: 3}
